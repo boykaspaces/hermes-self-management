@@ -221,26 +221,11 @@ index 736f32827..f8c272eba 100644
  
  
  
-@@ -284,6 +363,9 @@ def test_register_cli_uses_egress_command_dest():
-     assert hasattr(args, "egress_command")
-     assert not hasattr(args, "proxy_command")
- 
+@@ -282,4 +361,7 @@ def test_register_cli_uses_egress_command_dest():
+     # Parse a no-op invocation and confirm the attribute name.
+     args = parser.parse_args(["install"])
 +    setup_args = parser.parse_args(["setup", "--allowlist-only"])
 +    assert setup_args.allowlist_only is True
 +
- 
- 
- 
-diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_environment.py
-index 8ebe9b4..a5c40b2 100644
---- a/tests/tools/test_docker_environment.py
-+++ b/tests/tools/test_docker_environment.py
-@@ -889,7 +889,7 @@ def test_podman_labels_format_rejects_non_off_egress_container(monkeypatch):
-         if cmd[1] == "version":
-             return subprocess.CompletedProcess(cmd, 0, stdout="podman", stderr="")
-         if cmd[1] == "ps":
--            assert "{{.Labels}}" in cmd
-+            assert any("{{.Labels}}" in part for part in cmd)
-             assert not any(".Label " in part for part in cmd)
-             return subprocess.CompletedProcess(
-                 cmd, 0,
+     assert hasattr(args, "egress_command")
+     assert not hasattr(args, "proxy_command")
