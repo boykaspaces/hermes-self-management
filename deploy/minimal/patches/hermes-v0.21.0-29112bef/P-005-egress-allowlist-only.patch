@@ -229,3 +229,80 @@ index 736f32827..f8c272eba 100644
 +
      assert hasattr(args, "egress_command")
      assert not hasattr(args, "proxy_command")
+diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_environment.py
+--- a/tests/tools/test_docker_environment.py
++++ b/tests/tools/test_docker_environment.py
+@@ -373,5 +373,54 @@ def test_wrapped_exec_scopes_explicit_forward_env_across_profiles(monkeypatch, t
+     finally:
+         ss.set_multiplex_active(False)
+-
+-
++
++
++def test_allowlist_only_egress_accepts_empty_mappings(monkeypatch, tmp_path):
++    from agent.proxy_sources import iron_proxy as ip
++    from hermes_cli import config as hermes_config
++
++    config_path = tmp_path / "proxy.yaml"
++    ca_path = tmp_path / "ca.crt"
++    config_path.write_text("transforms: []\n", encoding="utf-8")
++    ca_path.write_text("test-ca\n", encoding="utf-8")
++    monkeypatch.setattr(
++        hermes_config,
++        "load_config",
++        lambda: {
++            "proxy": {
++                "enabled": True,
++                "enforce_on_docker": True,
++                "allowlist_only": True,
++            }
++        },
++    )
++    monkeypatch.setattr(
++        ip,
++        "get_status",
++        lambda: ip.ProxyStatus(
++            enabled=True,
++            config_path=config_path,
++            ca_cert_path=ca_path,
++            pid=123,
++            listening=True,
++            tunnel_port=9090,
++        ),
++    )
++    monkeypatch.setattr(ip, "load_mappings", lambda: [])
++
++    volume_args, env_overrides, host_args = (
++        docker_env._egress_proxy_args_for_docker()
++    )
++
++    assert volume_args == [
++        "-v", f"{ca_path}:/etc/ssl/certs/hermes-egress-ca.crt:ro",
++    ]
++    assert env_overrides["HERMES_EGRESS_PROXY"] == "1"
++    assert not any(
++        key.startswith("HERMES_PROXY_TOKEN_") for key in env_overrides
++    )
++    assert host_args == [
++        "--add-host", "host.docker.internal:host-gateway",
++    ]
++
++
+ # ── docker_env tests ──────────────────────────────────────────────
+diff --git a/tools/environments/docker.py b/tools/environments/docker.py
+--- a/tools/environments/docker.py
++++ b/tools/environments/docker.py
+@@ -530,9 +530,11 @@ def _egress_proxy_args_for_docker() -> tuple[list[str], dict[str, str], list[str
+     # Corrupt or empty mappings.json is a silent failure mode that's
+     # indistinguishable from an upstream outage from inside the sandbox
+     # (every request returns 403).  Refuse to mount with empty mappings
+-    # rather than ship a broken sandbox.
++    # rather than ship a broken sandbox. Explicit allowlist-only mode is the
++    # exception: it intentionally carries no provider-token mappings and uses
++    # the proxy only as a default-deny egress boundary.
+     mappings = ip.load_mappings()
+-    if not mappings:
++    if not mappings and not bool(proxy_cfg.get("allowlist_only", False)):
+         msg = (
+             "iron-proxy is configured but mappings.json is empty or "
+             "corrupt.  Re-run `hermes egress setup` to mint provider "
