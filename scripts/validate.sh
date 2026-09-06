@@ -3,6 +3,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+for path in PROJECT.md AGENTS.md .hermes/context-index.md .hermes/state.md \
+  .hermes/checkpoints/README.md tasks/README.md tasks/current.md \
+  docs/decisions/README.md; do
+  test -f "$repo_root/$path" || { echo "missing context path: $path" >&2; exit 1; }
+done
+
 if rg -n --glob '!scripts/validate.sh' '(210122338617|i-0f170ae7baf762606|2ugu1wgqaa|boyka5945@gmail\.com|arn:aws:[^:]*:[^:]*:210122338617|personal-tools-artifacts-210122338617)' "$repo_root"; then
   echo 'private deployment identifier detected' >&2
   exit 1
@@ -42,5 +48,12 @@ end
 abort(errors.join("\n")) unless errors.empty?
 puts 'markdown-relative-links-ok'
 RUBY
+
+active_task="$(awk -F': ' '/^Active Task:/ {print $2}' "$repo_root/tasks/current.md")"
+state_task="$(awk -F': ' '/^Active Task:/ {print $2}' "$repo_root/.hermes/state.md")"
+test "$active_task" = "$state_task" || {
+  echo 'Task and State current pointers disagree' >&2
+  exit 1
+}
 
 echo 'hermes-self-management repository validation passed'

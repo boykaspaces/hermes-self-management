@@ -14,12 +14,15 @@ observability.
 | [`deploy/minimal/`](./deploy/minimal/README.md) | Active deployment | Hermes EC2 runtime and host bootstrap | Building, validating, or upgrading the host |
 | [`hermes-plugins/observability/token_observer/`](./hermes-plugins/observability/token_observer/README.md) | Active source | Redacted model/tool usage metrics and local viewer | Changing or installing observability |
 | [`docs/`](./docs/README.md) | Current index | Architecture, security, repository map, and integration contracts | Understanding or extending the system |
+| [`.hermes/context-index.md`](./.hermes/context-index.md) | Current index | Public repository-maintenance context | Resuming development work |
+| [`tasks/`](./tasks/README.md) | Active index | Component Tasks and current work pointer | Reviewing or continuing repository work |
 | [`PROJECT.md`](./PROJECT.md) | Stable identity | Repository goal and source-of-truth boundaries | Starting repository work |
 | [`AGENTS.md`](./AGENTS.md) | Active instructions | AI editing and validation rules | Before changing files |
 
-Start with the narrowest deployment or plugin README. Production parameters,
-deployment records, actual account resources, and live Hermes context belong
-in a private operations repository.
+Start with the narrowest deployment or plugin README. This repository's own
+maintenance Tasks are public. Production parameters, deployment records,
+actual account resources, and live Hermes context belong in a private
+operations repository.
 
 ## Validation
 
