@@ -232,14 +232,31 @@ index 736f32827..f8c272eba 100644
 diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_environment.py
 --- a/tests/tools/test_docker_environment.py
 +++ b/tests/tools/test_docker_environment.py
-@@ -373,5 +373,54 @@ def test_wrapped_exec_scopes_explicit_forward_env_across_profiles(monkeypatch, t
+@@ -373,5 +373,91 @@ def test_wrapped_exec_scopes_explicit_forward_env_across_profiles(monkeypatch, t
      finally:
          ss.set_multiplex_active(False)
 -
 -
 +
 +
-+def test_allowlist_only_egress_accepts_empty_mappings(monkeypatch, tmp_path):
++@pytest.mark.parametrize(
++    ("docker_exe", "proxy_host", "expected_host_args"),
++    [
++        (
++            "/usr/bin/docker",
++            "host.docker.internal",
++            ["--add-host", "host.docker.internal:host-gateway"],
++        ),
++        (
++            "/usr/bin/podman",
++            "10.0.2.2",
++            ["--network=slirp4netns:allow_host_loopback=true"],
++        ),
++    ],
++)
++def test_allowlist_only_egress_accepts_empty_mappings(
++    monkeypatch, tmp_path, docker_exe, proxy_host, expected_host_args,
++):
 +    from agent.proxy_sources import iron_proxy as ip
 +    from hermes_cli import config as hermes_config
 +
@@ -271,6 +288,7 @@ diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_en
 +        ),
 +    )
 +    monkeypatch.setattr(ip, "load_mappings", lambda: [])
++    monkeypatch.setattr(docker_env, "find_docker", lambda: docker_exe)
 +
 +    volume_args, env_overrides, host_args = (
 +        docker_env._egress_proxy_args_for_docker()
@@ -280,12 +298,31 @@ diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_en
 +        "-v", f"{ca_path}:/etc/ssl/certs/hermes-egress-ca.crt:ro",
 +    ]
 +    assert env_overrides["HERMES_EGRESS_PROXY"] == "1"
++    assert env_overrides["HTTPS_PROXY"] == f"http://{proxy_host}:9090"
 +    assert not any(
 +        key.startswith("HERMES_PROXY_TOKEN_") for key in env_overrides
 +    )
-+    assert host_args == [
-+        "--add-host", "host.docker.internal:host-gateway",
-+    ]
++    assert host_args == expected_host_args
++
++
++def test_podman_egress_preserves_network_none(monkeypatch):
++    monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/podman")
++    monkeypatch.setattr(
++        docker_env,
++        "_egress_proxy_args_for_docker",
++        lambda: (
++            [],
++            {"HTTPS_PROXY": "http://10.0.2.2:9090"},
++            ["--network=slirp4netns:allow_host_loopback=true"],
++        ),
++    )
++    calls = _mock_subprocess_run(monkeypatch)
++
++    _make_dummy_env(network=False)
++
++    run_cmd = next(cmd for cmd, _kwargs in calls if cmd[1] == "run")
++    assert "--network=none" in run_cmd
++    assert "--network=slirp4netns:allow_host_loopback=true" not in run_cmd
 +
 +
  # ── docker_env tests ──────────────────────────────────────────────
@@ -306,3 +343,38 @@ diff --git a/tools/environments/docker.py b/tools/environments/docker.py
          msg = (
              "iron-proxy is configured but mappings.json is empty or "
              "corrupt.  Re-run `hermes egress setup` to mint provider "
+@@ -549,7 +551,10 @@ def _egress_proxy_args_for_docker() -> tuple[list[str], dict[str, str], list[str
+     # tunnel_port serves CONNECT (HTTPS); the plain-HTTP forward listener
+     # is on tunnel_port + 1 (see build_proxy_config's listener-role notes).
+-    proxy_url = f"http://host.docker.internal:{status.tunnel_port}"
+-    plain_http_url = f"http://host.docker.internal:{status.tunnel_port + 1}"
++    docker_exe = find_docker() or "docker"
++    is_podman = Path(docker_exe).name == "podman"
++    proxy_host = "10.0.2.2" if is_podman else "host.docker.internal"
++    proxy_url = f"http://{proxy_host}:{status.tunnel_port}"
++    plain_http_url = f"http://{proxy_host}:{status.tunnel_port + 1}"
+     env_overrides: dict[str, str] = {
+         # HTTPS_PROXY / HTTP_PROXY are respected by curl, requests, urllib,
+         # httpx, node fetch, go default transport, etc.  Lowercase variants
+@@ -607,4 +612,7 @@ def _egress_proxy_args_for_docker() -> tuple[list[str], dict[str, str], list[str
+     # host-gateway.  On Desktop this is a no-op (harmless duplicate).
+-    host_args: list[str] = ["--add-host", "host.docker.internal:host-gateway"]
++    if is_podman:
++        host_args = ["--network=slirp4netns:allow_host_loopback=true"]
++    else:
++        host_args = ["--add-host", "host.docker.internal:host-gateway"]
+-
++
+     return (volume_args, env_overrides, host_args)
+@@ -1155,6 +1163,10 @@ class DockerEnvironment(BaseEnvironment):
+         # env vars so outbound traffic routes through the host-side proxy.
+         # The sandbox receives PROXY tokens instead of real API keys.
+         egress_volume_args, egress_env_overrides, egress_host_args = (
+             _egress_proxy_args_for_docker()
+         )
++        if not network and egress_host_args == [
++            "--network=slirp4netns:allow_host_loopback=true"
++        ]:
++            egress_host_args = []
+         egress_label = _egress_reuse_fingerprint(
+             egress_volume_args, egress_env_overrides, egress_host_args,
