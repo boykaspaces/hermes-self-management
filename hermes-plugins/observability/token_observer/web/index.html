@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Hermes AI Observability</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">HERMES · TOKEN OBSERVER</p>
+        <h1>AI 调用观测台</h1>
+        <p class="subhead">用真实调用数据定位 Token、缓存、上下文和工具负担。</p>
+      </div>
+      <div class="controls">
+        <label>时间范围
+          <select id="days">
+            <option value="1">最近 24 小时</option>
+            <option value="7" selected>最近 7 天</option>
+            <option value="30">最近 30 天</option>
+          </select>
+        </label>
+        <button id="refresh" type="button">刷新数据</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="status">正在读取指标…</div>
+
+    <section aria-labelledby="overview-title">
+      <div class="section-title">
+        <div><p>01</p><h2 id="overview-title">运行总览</h2></div>
+        <span id="updated">尚未刷新</span>
+      </div>
+      <div id="cards" class="cards"></div>
+      <div class="token-panel">
+        <div>
+          <p class="label">精确 Token 构成</p>
+          <div id="token-legend" class="legend"></div>
+        </div>
+        <div id="token-bar" class="token-bar" aria-label="Token 构成"></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="model-title">
+      <div class="section-title"><div><p>02</p><h2 id="model-title">模型矩阵</h2></div></div>
+      <div class="table-shell"><table>
+        <thead><tr><th>Provider / Model</th><th>Calls</th><th>Prompt</th><th>未缓存</th><th>Cache read</th><th>命中率</th><th>Output</th><th>Errors</th></tr></thead>
+        <tbody id="models"></tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="runs-title">
+      <div class="section-title">
+        <div><p>03</p><h2 id="runs-title">Agent 调用链</h2></div>
+        <span>点击查看逐 Loop Prompt 组件与 Tool / MCP 次数</span>
+      </div>
+      <div class="table-shell"><table class="runs-table">
+        <thead><tr><th>Started</th><th>Platform</th><th>Loops</th><th>API attempts</th><th>Prompt</th><th>缓存命中率</th><th>Output</th></tr></thead>
+        <tbody id="runs"></tbody>
+      </table></div>
+      <div id="run-detail" class="run-detail" aria-live="polite">
+        <p class="empty">选择一行，查看逐 Loop 的 Token 构成和工具调用次数。</p>
+      </div>
+    </section>
+
+    <footer>
+      <span>只读 · Localhost only · 不保存 Prompt 或 Tool 正文</span>
+      <span id="coverage"></span>
+    </footer>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

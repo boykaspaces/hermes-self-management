@@ -1,0 +1,9 @@
+name: token-observer
+version: "0.2.0"
+description: "Privacy-safe local observability for per-request LLM token usage, context growth, retries, fallbacks, and tool calls."
+author: SelfManagementAIAgent
+hooks:
+  - pre_api_request
+  - post_api_request
+  - api_request_error
+  - post_tool_call

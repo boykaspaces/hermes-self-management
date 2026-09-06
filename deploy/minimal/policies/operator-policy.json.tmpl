@@ -1,0 +1,91 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartSessionOnlyOnHermesInstance",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:instance/${HERMES_INSTANCE_ID}"
+    },
+    {
+      "Sid": "UseDefaultSessionManagerShell",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:document/SSM-SessionManagerRunShell"
+    },
+    {
+      "Sid": "UseHermesDashboardPortForwarding",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ssm:${AWS_REGION}::document/AWS-StartPortForwardingSession"
+    },
+    {
+      "Sid": "OpenAndManageOnlyOwnSessions",
+      "Effect": "Allow",
+      "Action": [
+        "ssmmessages:OpenDataChannel",
+        "ssm:ResumeSession",
+        "ssm:TerminateSession"
+      ],
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:session/${aws:userid}-*"
+    },
+    {
+      "Sid": "ReadHermesOperationalState",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeTags",
+        "ec2:DescribeVolumes",
+        "ssm:DescribeInstanceInformation",
+        "ssm:DescribeInstanceProperties",
+        "ssm:DescribeSessions",
+        "ssm:GetConnectionStatus"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}"
+        }
+      }
+    },
+    {
+      "Sid": "ControlOnlyHermesInstancePower",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:RebootInstances"
+      ],
+      "Resource": "arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:instance/${HERMES_INSTANCE_ID}"
+    },
+    {
+      "Sid": "ReadOnlyHermesStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate"
+      ],
+      "Resource": "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/${HERMES_STACK_NAME}/*"
+    },
+    {
+      "Sid": "ReadBedrockModelMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:GetInferenceProfile",
+        "bedrock:GetFoundationModel"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,235 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudFormationTemplateChecks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListStacks"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageOnlyTheHermesStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:ContinueUpdateRollback",
+        "cloudformation:GetStackPolicy",
+        "cloudformation:ListChangeSets",
+        "cloudformation:SetStackPolicy"
+      ],
+      "Resource": "arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/${HERMES_STACK_NAME}/*"
+    },
+    {
+      "Sid": "ReadDeploymentDependenciesInTargetRegion",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeImages",
+        "ec2:DescribeInstanceAttribute",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeTags",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeVpcs",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetConnectionStatus",
+        "ssm:GetParameter",
+        "ssm:DescribeSessions",
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles",
+        "bedrock:GetInferenceProfile"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}"
+        }
+      }
+    },
+    {
+      "Sid": "ReadHermesTemplateArtifactBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::${ARTIFACT_BUCKET}",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "${TEMPLATE_PREFIX}/*"
+        }
+      }
+    },
+    {
+      "Sid": "ManageHermesTemplateArtifacts",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::${ARTIFACT_BUCKET}/${TEMPLATE_PREFIX}/*"
+    },
+    {
+      "Sid": "ManageEc2ForMinimalDeploymentInTargetRegion",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:TerminateInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:RebootInstances",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}"
+        }
+      }
+    },
+    {
+      "Sid": "CreateHermesSnapshotsFromTaggedVolumes",
+      "Effect": "Allow",
+      "Action": "ec2:CreateSnapshot",
+      "Resource": "arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:volume/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}",
+          "ec2:ResourceTag/Project": "${PROJECT_TAG}"
+        }
+      }
+    },
+    {
+      "Sid": "CreateTaggedHermesSnapshots",
+      "Effect": "Allow",
+      "Action": "ec2:CreateSnapshot",
+      "Resource": "arn:aws:ec2:${AWS_REGION}::snapshot/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}",
+          "aws:RequestTag/Project": "${PROJECT_TAG}"
+        }
+      }
+    },
+    {
+      "Sid": "DeleteTaggedHermesSnapshots",
+      "Effect": "Allow",
+      "Action": "ec2:DeleteSnapshot",
+      "Resource": "arn:aws:ec2:${AWS_REGION}::snapshot/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "${AWS_REGION}",
+          "ec2:ResourceTag/Project": "${PROJECT_TAG}"
+        }
+      }
+    },
+    {
+      "Sid": "ManageOnlyHermesRuntimeStateParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+        "ssm:AddTagsToResource",
+        "ssm:RemoveTagsFromResource"
+      ],
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/${HERMES_STACK_NAME}/runtime/telegram-enabled"
+    },
+    {
+      "Sid": "ManageOnlyHermesIamRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${HERMES_ROLE_PREFIX}*"
+    },
+    {
+      "Sid": "ManageOnlyHermesInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:AddRoleToInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:TagInstanceProfile",
+        "iam:UntagInstanceProfile"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:instance-profile/${HERMES_ROLE_PREFIX}*"
+    },
+    {
+      "Sid": "PassOnlyHermesRoleToEc2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${HERMES_ROLE_PREFIX}*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "StartSessionOnTaggedHermesInstances",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ec2:${AWS_REGION}:${AWS_ACCOUNT_ID}:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ssm:resourceTag/Project": "${PROJECT_TAG}"
+        }
+      }
+    },
+    {
+      "Sid": "UseSessionManagerShellDocument",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": "arn:aws:ssm:${AWS_REGION}:*:document/SSM-SessionManagerRunShell"
+    },
+    {
+      "Sid": "ManageOwnSessions",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:ResumeSession",
+        "ssm:TerminateSession",
+        "ssmmessages:OpenDataChannel"
+      ],
+      "Resource": "arn:aws:ssm:*:*:session/${aws:userid}-*"
+    }
+  ]
+}

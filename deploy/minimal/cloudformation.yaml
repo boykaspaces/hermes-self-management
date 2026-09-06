@@ -1,0 +1,1532 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Minimal Hermes Agent host on EC2 with SSM and ChatGPT subscription-backed OpenAI Codex access.
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: hermes-self-management
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9_.:/+=@-]{1,126}$'
+    Description: Neutral project tag applied to created resources.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC that contains the selected subnet.
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet with outbound internet access. Pin this explicitly so rebuilds do not depend on the default subnet.
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.small
+      - t3.medium
+    Description: t3.small supports the current low-concurrency headless browser workload; use t3.medium for concurrent browser sessions.
+
+  RootVolumeSize:
+    Type: Number
+    Default: 20
+    MinValue: 12
+    MaxValue: 100
+    Description: Encrypted gp3 root volume size in GiB.
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: Explicitly selected and reviewed Ubuntu 24.04 LTS x86_64 AMI for the target Region.
+
+  HermesGitRef:
+    Type: String
+    Default: 29112bef099274229cadff79cdff7bf7b99c4b77
+    AllowedPattern: "^[0-9a-f]{40}$"
+    ConstraintDescription: Must be a full 40-character Git commit SHA.
+    Description: Exact Hermes Agent source revision verified in production.
+
+  AWSCLIVersion:
+    Type: String
+    Default: 2.36.23
+    AllowedPattern: "^2\\.[0-9]+\\.[0-9]+$"
+    ConstraintDescription: Must be an AWS CLI v2 semantic version such as 2.36.23.
+    Description: Exact AWS CLI v2 version used for Secrets Manager, SSM Parameter, S3 restore, and CloudFormation signaling.
+
+  OpenAICodexModel:
+    Type: String
+    Default: gpt-5.6-sol
+    AllowedPattern: "^[A-Za-z0-9._:-]+$"
+    ConstraintDescription: Must be a plain OpenAI Codex model identifier without spaces or path separators.
+    Description: OpenAI Codex model selected from the authenticated ChatGPT account catalog. Override this parameter if the account exposes a different model.
+
+  TelegramEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Enable the production Telegram channel. Keep false for a parallel rebuild until cutover.
+
+  TelegramRuntimeSecretArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$"
+    ConstraintDescription: Must be empty or a complete Secrets Manager secret ARN.
+    Description: JSON secret containing TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS, TELEGRAM_HOME_CHANNEL, and optional TELEGRAM_HOME_CHANNEL_THREAD_ID.
+
+  PersonalToolsMCPURL:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^https://\S+/mcp$'
+    ConstraintDescription: Must be empty or an HTTPS MCP endpoint ending in /mcp.
+    Description: Optional Personal Tools MCP Streamable HTTP endpoint.
+
+  PersonalToolsClientTokenSecretArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$"
+    ConstraintDescription: Must be empty or a complete Secrets Manager secret ARN.
+    Description: Existing Personal Tools client-token Secret. Its value is synchronized before Gateway start and never stored in this template.
+
+  GitCodingEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Enable the restricted-network coding container and short-lived GitHub credential lease client.
+
+  CredentialLeaseApiId:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^[a-z0-9]{10}$'
+    ConstraintDescription: Must be empty or a 10-character API Gateway HTTP API ID.
+    Description: Personal Tools HTTP API ID used to derive the same-account, same-region invoke ARN.
+
+  CredentialProfileId:
+    Type: String
+    Default: github-repository-write
+    AllowedPattern: '^[a-z0-9][a-z0-9-]{2,63}$'
+    Description: Server-defined credential profile requested by the host provisioner.
+
+  CredentialAgentArtifactS3Bucket:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+    ConstraintDescription: Must be empty or a valid S3 bucket name.
+    Description: Bucket containing the versioned credential-agent zip.
+
+  CredentialAgentArtifactS3Key:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^\S+$'
+    ConstraintDescription: Must be empty or a non-whitespace S3 object key.
+    Description: Key of the versioned credential-agent zip.
+
+  CredentialAgentArtifactS3ObjectVersion:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^\S+$'
+    Description: Optional immutable S3 version ID for the credential-agent zip.
+
+  CredentialAgentArtifactSHA256:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^[0-9a-f]{64}$'
+    ConstraintDescription: Must be empty or a lowercase SHA-256 digest.
+    Description: Required digest of the credential-agent zip.
+
+  CodingContainerBaseImage:
+    Type: String
+    Default: docker.io/nikolaik/python-nodejs:python3.11-nodejs20
+    AllowedPattern: '^[A-Za-z0-9./:_@-]+$'
+    Description: Base image used to build the local Hermes coding image with the credential helper.
+
+  HermesStateBackupBucket:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"
+    ConstraintDescription: Must be empty or a valid S3 bucket name.
+    Description: Optional bucket containing a state-only Hermes restore archive.
+
+  HermesStateBackupKey:
+    Type: String
+    Default: ""
+    AllowedPattern: '^$|^\S+$'
+    ConstraintDescription: Must be empty or a non-whitespace S3 object key.
+    Description: Optional .tar.gz object containing only memories/, sessions/, and workspace/ beneath the Hermes home.
+
+Conditions:
+  HasTelegramRuntimeSecret: !Not [!Equals [!Ref TelegramRuntimeSecretArn, ""]]
+  HasPersonalToolsClientTokenSecret: !Not [!Equals [!Ref PersonalToolsClientTokenSecretArn, ""]]
+  GitCodingIsEnabled: !Equals [!Ref GitCodingEnabled, "true"]
+  HasStateBackupBucket: !Not [!Equals [!Ref HermesStateBackupBucket, ""]]
+  HasStateBackupKey: !Not [!Equals [!Ref HermesStateBackupKey, ""]]
+  HasStateBackup: !And
+    - !Condition HasStateBackupBucket
+    - !Condition HasStateBackupKey
+
+Rules:
+  TelegramRequiresRuntimeSecret:
+    RuleCondition: !Equals [!Ref TelegramEnabled, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref TelegramRuntimeSecretArn, ""]]
+        AssertDescription: TelegramRuntimeSecretArn is required when TelegramEnabled is true.
+
+  StateRestoreParametersMustBePaired:
+    Assertions:
+      - Assert: !Or
+          - !And
+            - !Equals [!Ref HermesStateBackupBucket, ""]
+            - !Equals [!Ref HermesStateBackupKey, ""]
+          - !And
+            - !Not [!Equals [!Ref HermesStateBackupBucket, ""]]
+            - !Not [!Equals [!Ref HermesStateBackupKey, ""]]
+        AssertDescription: HermesStateBackupBucket and HermesStateBackupKey must either both be empty or both be provided.
+
+  GitCodingRequiresCredentialLease:
+    RuleCondition: !Equals [!Ref GitCodingEnabled, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref CredentialLeaseApiId, ""]]
+        AssertDescription: CredentialLeaseApiId is required when GitCodingEnabled is true.
+      - Assert: !Not [!Equals [!Ref CredentialAgentArtifactS3Bucket, ""]]
+        AssertDescription: CredentialAgentArtifactS3Bucket is required when GitCodingEnabled is true.
+      - Assert: !Not [!Equals [!Ref CredentialAgentArtifactS3Key, ""]]
+        AssertDescription: CredentialAgentArtifactS3Key is required when GitCodingEnabled is true.
+      - Assert: !Not [!Equals [!Ref CredentialAgentArtifactSHA256, ""]]
+        AssertDescription: CredentialAgentArtifactSHA256 is required when GitCodingEnabled is true.
+
+Resources:
+  HermesSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: No inbound access; outbound web access for SSM, packages, and Bedrock.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress: []
+      SecurityGroupEgress:
+        - Description: HTTPS for SSM, Hermes install, and Bedrock
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: HTTP for Ubuntu package mirrors
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+        - Key: Project
+          Value: !Ref ProjectTag
+
+  HermesInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: HermesBootstrapSignal
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SignalOnlyThisStack
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:SignalResource
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - Sid: ReadOnlyTelegramDesiredState
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/runtime/telegram-enabled
+        - !If
+          - HasTelegramRuntimeSecret
+          - PolicyName: ReadTelegramRuntimeSecret
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: ReadOnlyConfiguredTelegramSecret
+                  Effect: Allow
+                  Action:
+                    - secretsmanager:DescribeSecret
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref TelegramRuntimeSecretArn
+          - !Ref AWS::NoValue
+        - !If
+          - HasPersonalToolsClientTokenSecret
+          - PolicyName: ReadPersonalToolsClientToken
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: ReadOnlyConfiguredPersonalToolsToken
+                  Effect: Allow
+                  Action:
+                    - secretsmanager:DescribeSecret
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref PersonalToolsClientTokenSecretArn
+          - !Ref AWS::NoValue
+        - !If
+          - HasStateBackup
+          - PolicyName: ReadHermesStateBackup
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: ReadOnlyConfiguredStateArchive
+                  Effect: Allow
+                  Action: s3:GetObject
+                  Resource: !Sub arn:${AWS::Partition}:s3:::${HermesStateBackupBucket}/${HermesStateBackupKey}
+          - !Ref AWS::NoValue
+        - !If
+          - GitCodingIsEnabled
+          - PolicyName: UseCredentialLease
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: InvokeOnlyCredentialLeaseRoute
+                  Effect: Allow
+                  Action: execute-api:Invoke
+                  Resource: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${CredentialLeaseApiId}/*/POST/v1/credential-leases
+                - Sid: ReadOnlyCredentialAgentArtifact
+                  Effect: Allow
+                  Action:
+                    - s3:GetObject
+                    - s3:GetObjectVersion
+                  Resource: !Sub arn:${AWS::Partition}:s3:::${CredentialAgentArtifactS3Bucket}/${CredentialAgentArtifactS3Key}
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectTag
+
+  HermesInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref HermesInstanceRole
+
+  TelegramDesiredStateParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /${AWS::StackName}/runtime/telegram-enabled
+      Type: String
+      Value: !Ref TelegramEnabled
+      Description: Desired Telegram state. Gateway applies it from ExecStartPre without changing EC2 User Data.
+      Tags:
+        Project: !Ref ProjectTag
+        Component: hermes-runtime-config
+
+  HermesInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      RuntimeConfigScript:
+        Fn::Sub: |
+          #!/bin/bash
+          set -euo pipefail
+
+          AWS_REGION='${AWS::Region}'
+          AWS_CLI=/usr/local/bin/aws
+          HERMES_HOME=/home/hermes/.hermes
+          HERMES_BIN=/home/hermes/.local/bin/hermes
+          HERMES_PYTHON=/home/hermes/.hermes/hermes-agent/venv/bin/python
+          MCP_SECRET_ARN='${PersonalToolsClientTokenSecretArn}'
+          MCP_URL='${PersonalToolsMCPURL}'
+          TELEGRAM_SECRET_ARN='${TelegramRuntimeSecretArn}'
+          TELEGRAM_STATE_PARAMETER='${TelegramDesiredStateParameter}'
+          OPENAI_CODEX_MODEL='${OpenAICodexModel}'
+          GIT_CODING_ENABLED='${GitCodingEnabled}'
+          CREDENTIAL_LEASE_URL='https://${CredentialLeaseApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/credential-leases'
+          CREDENTIAL_PROFILE_ID='${CredentialProfileId}'
+          CREDENTIAL_ARTIFACT_BUCKET='${CredentialAgentArtifactS3Bucket}'
+          CREDENTIAL_ARTIFACT_KEY='${CredentialAgentArtifactS3Key}'
+          CREDENTIAL_ARTIFACT_VERSION='${CredentialAgentArtifactS3ObjectVersion}'
+          CREDENTIAL_ARTIFACT_SHA256='${CredentialAgentArtifactSHA256}'
+          CODING_BASE_IMAGE='${CodingContainerBaseImage}'
+
+          cd "$HERMES_HOME/hermes-agent"
+          MANAGED_PATCH_ARCHIVE="$(mktemp)"
+          "$AWS_CLI" cloudformation describe-stack-resource \
+            --region "$AWS_REGION" \
+            --stack-name '${AWS::StackName}' \
+            --logical-resource-id HermesInstance \
+            --query StackResourceDetail.Metadata \
+            --output json \
+            | jq -er 'fromjson.ManagedHermesPatchArchive' \
+            | tr -d '\n' \
+            | base64 -d >"$MANAGED_PATCH_ARCHIVE"
+          "$HERMES_PYTHON" - "$MANAGED_PATCH_ARCHIVE" "$HERMES_HOME/managed-patches" <<'PY'
+          import os
+          import shutil
+          import sys
+          import tarfile
+          import tempfile
+          from pathlib import Path, PurePosixPath
+
+          archive = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          target.parent.mkdir(parents=True, exist_ok=True)
+          staging = Path(tempfile.mkdtemp(prefix=".managed-patches-", dir=target.parent))
+          backup = target.with_name(".managed-patches.previous")
+          required = {
+              "apply-hermes-patches.sh",
+              "patches/hermes-v0.21.0-29112bef/commit.txt",
+              "patches/hermes-v0.21.0-29112bef/P-002-browser-private-url.patch",
+              "patches/hermes-v0.21.0-29112bef/P-003-podman-reuse.patch",
+              "patches/hermes-v0.21.0-29112bef/PATCHED_SHA256SUMS",
+          }
+          try:
+              with tarfile.open(archive, "r:gz") as source:
+                  members = source.getmembers()
+                  actual = set()
+                  for member in members:
+                      name = PurePosixPath(member.name)
+                      if (
+                          name.is_absolute()
+                          or ".." in name.parts
+                          or member.issym()
+                          or member.islnk()
+                          or member.isdev()
+                          or not member.isfile()
+                          or not name.parts
+                          or name.parts[0] != "managed-patches"
+                      ):
+                          raise SystemExit(f"unsafe managed patch archive member: {member.name}")
+                      actual.add(str(PurePosixPath(*name.parts[1:])))
+                  if actual != required:
+                      raise SystemExit("managed patch archive is incomplete or contains unexpected files")
+                  source.extractall(staging, members=members, filter="data")
+              candidate = staging / "managed-patches"
+              if backup.exists():
+                  shutil.rmtree(backup)
+              if target.exists():
+                  os.replace(target, backup)
+              os.replace(candidate, target)
+              if backup.exists():
+                  shutil.rmtree(backup)
+          finally:
+              shutil.rmtree(staging, ignore_errors=True)
+          PY
+          rm -f "$MANAGED_PATCH_ARCHIVE"
+          env \
+            HERMES_REPO="$HERMES_HOME/hermes-agent" \
+            HERMES_PATCH_SET="$HERMES_HOME/managed-patches/patches/hermes-v0.21.0-29112bef" \
+            HERMES_PYTHON="$HERMES_PYTHON" \
+            "$HERMES_HOME/managed-patches/apply-hermes-patches.sh" apply
+
+          if [ "$GIT_CODING_ENABLED" = true ]; then
+            CREDENTIAL_RUNTIME="$HERMES_HOME/runtime/credential-agent"
+            install -d -m 0700 "$HERMES_HOME/runtime" "$CREDENTIAL_RUNTIME"
+            CREDENTIAL_ARCHIVE="$(mktemp)"
+            if [ -n "$CREDENTIAL_ARTIFACT_VERSION" ]; then
+              "$AWS_CLI" s3api get-object \
+                --bucket "$CREDENTIAL_ARTIFACT_BUCKET" \
+                --key "$CREDENTIAL_ARTIFACT_KEY" \
+                --version-id "$CREDENTIAL_ARTIFACT_VERSION" \
+                --region "$AWS_REGION" \
+                "$CREDENTIAL_ARCHIVE" >/dev/null
+            else
+              "$AWS_CLI" s3api get-object \
+                --bucket "$CREDENTIAL_ARTIFACT_BUCKET" \
+                --key "$CREDENTIAL_ARTIFACT_KEY" \
+                --region "$AWS_REGION" \
+                "$CREDENTIAL_ARCHIVE" >/dev/null
+            fi
+            printf '%s  %s\n' "$CREDENTIAL_ARTIFACT_SHA256" "$CREDENTIAL_ARCHIVE" | sha256sum -c -
+            rm -rf "$CREDENTIAL_RUNTIME/staging"
+            install -d -m 0700 "$CREDENTIAL_RUNTIME/staging"
+            unzip -q "$CREDENTIAL_ARCHIVE" -d "$CREDENTIAL_RUNTIME/staging"
+            rm -f "$CREDENTIAL_ARCHIVE"
+            test -f "$CREDENTIAL_RUNTIME/staging/hermes-credential-provisioner"
+            test -f "$CREDENTIAL_RUNTIME/staging/git-credential-hermes"
+            install -m 0755 "$CREDENTIAL_RUNTIME/staging/hermes-credential-provisioner" \
+              "$HERMES_HOME/.local/bin/hermes-credential-provisioner"
+
+            CREDENTIAL_IMAGE=localhost/hermes-coding:managed
+            CURRENT_IMAGE_DIGEST="$(HERMES_DOCKER_BINARY=/usr/bin/podman podman image inspect \
+              --format '{{ index .Labels "org.hermes.credential-agent.sha256" }}' \
+              "$CREDENTIAL_IMAGE" 2>/dev/null || true)"
+            if [ "$CURRENT_IMAGE_DIGEST" != "$CREDENTIAL_ARTIFACT_SHA256" ]; then
+              install -m 0755 "$CREDENTIAL_RUNTIME/staging/git-credential-hermes" \
+                "$CREDENTIAL_RUNTIME/git-credential-hermes"
+              cat >"$CREDENTIAL_RUNTIME/Containerfile" <<CONTAINERFILE
+          FROM $CODING_BASE_IMAGE
+          COPY git-credential-hermes /usr/local/bin/git-credential-hermes
+          RUN chmod 0755 /usr/local/bin/git-credential-hermes \\
+              && git config --system credential.helper hermes \\
+              && git config --system credential.useHttpPath true \\
+              && git config --system credential.interactive false
+          ENV HERMES_CREDENTIAL_DIR=/run/hermes/credentials
+          ENV GIT_TERMINAL_PROMPT=0
+          LABEL org.hermes.credential-agent.sha256=$CREDENTIAL_ARTIFACT_SHA256
+          CONTAINERFILE
+              HERMES_DOCKER_BINARY=/usr/bin/podman podman build \
+                --pull=always \
+                --tag "$CREDENTIAL_IMAGE" \
+                "$CREDENTIAL_RUNTIME"
+            fi
+            rm -rf "$CREDENTIAL_RUNTIME/staging"
+
+            HERMES_UID="$(id -u)"
+            USER_UNIT_DIR="$HOME/.config/systemd/user"
+            install -d -m 0700 "$USER_UNIT_DIR/default.target.wants"
+            cat >"$USER_UNIT_DIR/hermes-credential-provisioner.service" <<EOF
+          [Unit]
+          Description=Hermes short-lived credential provisioner
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          Environment=HOME=$HOME
+          ExecStart=$HERMES_HOME/.local/bin/hermes-credential-provisioner --endpoint $CREDENTIAL_LEASE_URL --region $AWS_REGION --profile $CREDENTIAL_PROFILE_ID --output %t/hermes-credentials/$CREDENTIAL_PROFILE_ID.json --refresh-before 10m
+          Restart=always
+          RestartSec=10
+          RuntimeDirectory=hermes-credentials
+          RuntimeDirectoryMode=0700
+          UMask=0077
+          NoNewPrivileges=true
+          PrivateTmp=true
+          ProtectSystem=strict
+          ProtectHome=read-only
+          ReadWritePaths=%t/hermes-credentials
+          RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+          LockPersonality=true
+
+          [Install]
+          WantedBy=default.target
+          EOF
+            chmod 0600 "$USER_UNIT_DIR/hermes-credential-provisioner.service"
+            ln -sfn ../hermes-credential-provisioner.service \
+              "$USER_UNIT_DIR/default.target.wants/hermes-credential-provisioner.service"
+
+            env \
+              CREDENTIAL_MOUNT="/run/user/$HERMES_UID/hermes-credentials:/run/hermes/credentials:ro" \
+              CREDENTIAL_IMAGE="$CREDENTIAL_IMAGE" \
+              "$HERMES_PYTHON" -c '
+          import os
+          import yaml
+          from utils import atomic_yaml_write
+
+          path = "/home/hermes/.hermes/config.yaml"
+          with open(path, encoding="utf-8") as source:
+              config = yaml.safe_load(source) or {}
+
+          terminal = config.setdefault("terminal", {})
+          terminal["backend"] = "docker"
+          terminal["docker_image"] = os.environ["CREDENTIAL_IMAGE"]
+          terminal["docker_network"] = True
+          terminal["docker_forward_env"] = []
+          terminal["docker_extra_args"] = []
+          volumes = [
+              item for item in terminal.get("docker_volumes", [])
+              if not str(item).split(":", 1)[-1].startswith("/run/hermes/credentials")
+          ]
+          volumes.append(os.environ["CREDENTIAL_MOUNT"])
+          terminal["docker_volumes"] = volumes
+
+          proxy = config.setdefault("proxy", {})
+          proxy.update({
+              "enabled": True,
+              "auto_install": True,
+              "credential_source": "env",
+              "enforce_on_docker": True,
+              "allow_env_fallback": False,
+              "upstream_deny_cidrs": None,
+              "extra_allowed_hosts": [
+                  "github.com",
+                  "api.github.com",
+                  "objects.githubusercontent.com",
+                  "raw.githubusercontent.com",
+                  "codeload.github.com",
+                  "github-releases.githubusercontent.com",
+                  "proxy.golang.org",
+                  "sum.golang.org",
+                  "storage.googleapis.com",
+                  "registry.npmjs.org",
+              ],
+          })
+          config.setdefault("checkpoints", {})["enabled"] = True
+          config.setdefault("skills", {}).update({
+              "guard_agent_created": True,
+              "write_approval": True,
+          })
+          config.setdefault("memory", {})["write_approval"] = True
+          approvals = config.setdefault("approvals", {})
+          approvals["mode"] = "smart"
+          approvals["denial_breaker_threshold"] = 3
+          deny = list(approvals.get("deny", []))
+          for pattern in ("git push --force*", "git push *--force*"):
+              if pattern not in deny:
+                  deny.append(pattern)
+          approvals["deny"] = deny
+          git_policy = (
+              "APPROVE ordinary git commit and non-force git push commands when the "
+              "current branch starts with hermes/. ESCALATE attempts to update main, "
+              "other branch namespaces, tags, remotes, credentials, or live host "
+              "configuration outside the coding worktree."
+          )
+          current_policy = str(approvals.get("smart_policy", "")).strip()
+          if git_policy not in current_policy:
+              approvals["smart_policy"] = "\n\n".join(filter(None, (current_policy, git_policy)))
+          atomic_yaml_write(path, config)
+          '
+            "$HERMES_BIN" egress install
+            "$HERMES_BIN" egress setup --no-bitwarden --no-restart
+            "$HERMES_BIN" egress restart
+          fi
+
+          if [ ! -f "$HERMES_HOME/.env" ]; then
+            install -m 0600 /dev/null "$HERMES_HOME/.env"
+          fi
+
+          if [ -n "$MCP_SECRET_ARN" ]; then
+            MCP_PERSONAL_TOOLS_API_KEY="$("$AWS_CLI" secretsmanager get-secret-value \
+              --secret-id "$MCP_SECRET_ARN" \
+              --region "$AWS_REGION" \
+              --query SecretString \
+              --output text)"
+            test -n "$MCP_PERSONAL_TOOLS_API_KEY"
+            case "$MCP_PERSONAL_TOOLS_API_KEY" in
+              *[!A-Za-z0-9_-]*) echo "Personal Tools client token contains unsupported dotenv characters" >&2; exit 1 ;;
+            esac
+            sed -i '/^MCP_PERSONAL_TOOLS_API_KEY=/d' "$HERMES_HOME/.env"
+            printf 'MCP_PERSONAL_TOOLS_API_KEY=%s\n' "$MCP_PERSONAL_TOOLS_API_KEY" >>"$HERMES_HOME/.env"
+            unset MCP_PERSONAL_TOOLS_API_KEY
+            env MCP_URL="$MCP_URL" "$HERMES_PYTHON" -c '
+          import os
+          import yaml
+          from utils import atomic_yaml_write
+
+          path = "/home/hermes/.hermes/config.yaml"
+          with open(path, encoding="utf-8") as source:
+              config = yaml.safe_load(source) or {}
+          config.setdefault("mcp_servers", {})["personal_tools"] = {
+              "url": os.environ["MCP_URL"],
+              "connect_timeout": 15,
+              "headers": {
+                  "X-Hermes-Gateway-Token": "Bearer ${!MCP_PERSONAL_TOOLS_API_KEY}",
+              },
+          }
+          atomic_yaml_write(path, config)
+          '
+          fi
+
+          TELEGRAM_ENABLED="$("$AWS_CLI" ssm get-parameter \
+            --name "$TELEGRAM_STATE_PARAMETER" \
+            --region "$AWS_REGION" \
+            --query Parameter.Value \
+            --output text)"
+          case "$TELEGRAM_ENABLED" in
+            true|false) ;;
+            *) echo "Invalid Telegram desired state" >&2; exit 1 ;;
+          esac
+          "$HERMES_BIN" config set platforms.telegram.enabled "$TELEGRAM_ENABLED"
+          sed -i \
+            -e '/^TELEGRAM_BOT_TOKEN=/d' \
+            -e '/^TELEGRAM_ALLOWED_USERS=/d' \
+            -e '/^TELEGRAM_HOME_CHANNEL=/d' \
+            -e '/^TELEGRAM_HOME_CHANNEL_THREAD_ID=/d' \
+            "$HERMES_HOME/.env"
+
+          if [ "$TELEGRAM_ENABLED" = true ]; then
+            test -n "$TELEGRAM_SECRET_ARN"
+            TELEGRAM_SECRET_JSON="$("$AWS_CLI" secretsmanager get-secret-value \
+              --secret-id "$TELEGRAM_SECRET_ARN" \
+              --region "$AWS_REGION" \
+              --query SecretString \
+              --output text)"
+            TELEGRAM_BOT_TOKEN="$(printf '%s' "$TELEGRAM_SECRET_JSON" | jq -er '.TELEGRAM_BOT_TOKEN | select(type == "string" and length > 0)')"
+            TELEGRAM_ALLOWED_USERS="$(printf '%s' "$TELEGRAM_SECRET_JSON" | jq -er '.TELEGRAM_ALLOWED_USERS | select(type == "string" and length > 0)')"
+            TELEGRAM_HOME_CHANNEL="$(printf '%s' "$TELEGRAM_SECRET_JSON" | jq -er '.TELEGRAM_HOME_CHANNEL | select(type == "string" and length > 0)')"
+            TELEGRAM_HOME_CHANNEL_THREAD_ID="$(printf '%s' "$TELEGRAM_SECRET_JSON" | jq -er '.TELEGRAM_HOME_CHANNEL_THREAD_ID // "" | select(type == "string")')"
+            case "$TELEGRAM_BOT_TOKEN" in *[!A-Za-z0-9:_-]*) echo "Invalid Telegram token format" >&2; exit 1 ;; esac
+            case "$TELEGRAM_ALLOWED_USERS" in *[!0-9,-]*) echo "Invalid Telegram allowed-users format" >&2; exit 1 ;; esac
+            case "$TELEGRAM_HOME_CHANNEL" in *[!0-9-]*) echo "Invalid Telegram home-channel format" >&2; exit 1 ;; esac
+            case "$TELEGRAM_HOME_CHANNEL_THREAD_ID" in *[!0-9]*) echo "Invalid Telegram thread-id format" >&2; exit 1 ;; esac
+            {
+              printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+              printf 'TELEGRAM_ALLOWED_USERS=%s\n' "$TELEGRAM_ALLOWED_USERS"
+              printf 'TELEGRAM_HOME_CHANNEL=%s\n' "$TELEGRAM_HOME_CHANNEL"
+              if [ -n "$TELEGRAM_HOME_CHANNEL_THREAD_ID" ]; then
+                printf 'TELEGRAM_HOME_CHANNEL_THREAD_ID=%s\n' "$TELEGRAM_HOME_CHANNEL_THREAD_ID"
+              fi
+            } >>"$HERMES_HOME/.env"
+            unset TELEGRAM_SECRET_JSON TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USERS TELEGRAM_HOME_CHANNEL TELEGRAM_HOME_CHANNEL_THREAD_ID
+          fi
+
+          chmod 0600 "$HERMES_HOME/.env"
+
+          sed -i \
+            -e '/^OPENAI_API_KEY=/d' \
+            -e '/^OPENAI_BASE_URL=/d' \
+            "$HERMES_HOME/.env"
+          env OPENAI_CODEX_MODEL="$OPENAI_CODEX_MODEL" "$HERMES_PYTHON" -c '
+          import os
+          import yaml
+          from utils import atomic_yaml_write
+
+          path = "/home/hermes/.hermes/config.yaml"
+          with open(path, encoding="utf-8") as source:
+              config = yaml.safe_load(source) or {}
+
+          model = config.setdefault("model", {})
+          if not isinstance(model, dict):
+              model = {}
+              config["model"] = model
+          model.update({
+              "provider": "openai-codex",
+              "default": os.environ["OPENAI_CODEX_MODEL"],
+              "base_url": "https://chatgpt.com/backend-api/codex",
+          })
+          model.pop("api_key", None)
+          model.pop("api_key_env", None)
+
+          auxiliary = config.setdefault("auxiliary", {})
+          if isinstance(auxiliary, dict):
+              for task in auxiliary.values():
+                  if not isinstance(task, dict):
+                      continue
+                  task["provider"] = "main"
+                  for key in ("model", "base_url", "api_key", "api_key_env", "fallback_chain"):
+                      task.pop(key, None)
+
+          config.pop("fallback_providers", None)
+          config.pop("fallback_model", None)
+          config.pop("bedrock", None)
+          config.setdefault("prompt_caching", {})["cache_ttl"] = "off"
+          atomic_yaml_write(path, config)
+          '
+          if [ -f "$HERMES_HOME/auth.json" ]; then
+            chmod 0600 "$HERMES_HOME/auth.json"
+          fi
+
+          TOKEN_OBSERVER_ARCHIVE="$(mktemp)"
+          trap 'rm -f "$TOKEN_OBSERVER_ARCHIVE"' EXIT
+          "$AWS_CLI" cloudformation describe-stack-resource \
+            --region "$AWS_REGION" \
+            --stack-name '${AWS::StackName}' \
+            --logical-resource-id HermesInstance \
+            --query StackResourceDetail.Metadata \
+            --output json \
+            | jq -er 'fromjson.TokenObserverArchive' \
+            | tr -d '\n' \
+            | base64 -d >"$TOKEN_OBSERVER_ARCHIVE"
+          "$HERMES_PYTHON" - "$TOKEN_OBSERVER_ARCHIVE" "$HERMES_HOME/plugins/observability/token_observer" <<'PY'
+          import os
+          import shutil
+          import sys
+          import tarfile
+          import tempfile
+          from pathlib import Path, PurePosixPath
+
+          archive = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          target.parent.mkdir(parents=True, exist_ok=True)
+          staging = Path(tempfile.mkdtemp(prefix=".token-observer-", dir=target.parent))
+          backup = target.with_name(".token_observer.previous")
+          try:
+              with tarfile.open(archive, "r:gz") as source:
+                  members = source.getmembers()
+                  for member in members:
+                      name = PurePosixPath(member.name)
+                      if name.is_absolute() or ".." in name.parts or member.issym() or member.islnk() or member.isdev():
+                          raise SystemExit(f"unsafe token observer archive member: {member.name}")
+                  source.extractall(staging, members=members, filter="data")
+              candidate = staging / "token_observer"
+              required = {
+                  "plugin.yaml", "__init__.py", "observer.py", "runtime_instrumentation.py", "report.py", "viewer.py",
+                  "hermes-token-observer-viewer.service", "web",
+              }
+              if not candidate.is_dir() or not required.issubset({item.name for item in candidate.iterdir()}):
+                  raise SystemExit("token observer archive is incomplete")
+              if backup.exists():
+                  shutil.rmtree(backup)
+              if target.exists():
+                  os.replace(target, backup)
+              os.replace(candidate, target)
+              if backup.exists():
+                  shutil.rmtree(backup)
+          finally:
+              shutil.rmtree(staging, ignore_errors=True)
+          PY
+          chmod 0755 \
+            "$HERMES_HOME/plugins/observability/token_observer/report.py" \
+            "$HERMES_HOME/plugins/observability/token_observer/viewer.py"
+          VIEWER_UNIT_DIR=/home/hermes/.config/systemd/user
+          install -d -m 0700 "$VIEWER_UNIT_DIR" "$VIEWER_UNIT_DIR/default.target.wants"
+          install -m 0600 \
+            "$HERMES_HOME/plugins/observability/token_observer/hermes-token-observer-viewer.service" \
+            "$VIEWER_UNIT_DIR/hermes-token-observer-viewer.service"
+          ln -sfn ../hermes-token-observer-viewer.service \
+            "$VIEWER_UNIT_DIR/default.target.wants/hermes-token-observer-viewer.service"
+          if [ -n "${!XDG_RUNTIME_DIR:-}" ] && [ -S "${!XDG_RUNTIME_DIR}/bus" ]; then
+            systemctl --user daemon-reload
+            systemctl --user restart hermes-token-observer-viewer.service
+          fi
+          "$HERMES_BIN" plugins enable observability/token_observer --no-allow-tool-override
+          "$HERMES_BIN" config set browser.backend off
+          "$HERMES_BIN" config check
+      # HERMES_PATCH_ARCHIVE_BEGIN
+      ManagedHermesPatchArchive: |
+        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
+      # HERMES_PATCH_ARCHIVE_END
+      # TOKEN_OBSERVER_ARCHIVE_BEGIN
+      TokenObserverArchive: |
+        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
+        c/G5+Fx8Lj4f5uf/BdW4ahYAkAEA
+      # TOKEN_OBSERVER_ARCHIVE_END
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT45M
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref HermesInstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !GetAtt HermesSecurityGroup.GroupId
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+        InstanceMetadataTags: disabled
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: gp3
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          signal_stack() {
+            /usr/local/bin/aws cloudformation signal-resource \
+              --region '${AWS::Region}' \
+              --stack-name '${AWS::StackName}' \
+              --logical-resource-id HermesInstance \
+              --unique-id "$(cat /var/lib/cloud/data/instance-id)" \
+              --status "$1" || true
+          }
+          trap 'signal_stack FAILURE' ERR
+
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            ca-certificates \
+            curl \
+            ffmpeg \
+            fuse-overlayfs \
+            git \
+            jq \
+            libffi-dev \
+            podman \
+            python3-dev \
+            ripgrep \
+            slirp4netns \
+            uidmap \
+            unzip \
+            xz-utils
+
+          aws_cli_tmp="$(mktemp -d)"
+          curl -fsSLo "$aws_cli_tmp/awscliv2.zip" \
+            'https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLIVersion}.zip'
+          unzip -q "$aws_cli_tmp/awscliv2.zip" -d "$aws_cli_tmp"
+          "$aws_cli_tmp/aws/install" \
+            --bin-dir /usr/local/bin \
+            --install-dir /usr/local/aws-cli
+          /usr/local/bin/aws --version | grep -F 'aws-cli/${AWSCLIVersion} '
+          case "$aws_cli_tmp" in
+            /tmp/tmp.*) rm -rf -- "$aws_cli_tmp" ;;
+            *) echo "Unexpected AWS CLI temporary path" >&2; exit 1 ;;
+          esac
+
+          if ! id -u hermes >/dev/null 2>&1; then
+            useradd --create-home --shell /bin/bash hermes
+          fi
+
+          loginctl enable-linger hermes
+
+          systemctl disable --now \
+            podman.socket \
+            podman.service \
+            podman-auto-update.timer \
+            podman-restart.service \
+            podman-clean-transient.service || true
+
+          install -d -m 0700 -o hermes -g hermes /home/hermes/.hermes
+
+          for installer_attempt in 1 2 3; do
+            if sudo -u hermes -H env NODE_DEPS_TIMEOUT=1200 bash -lc \
+              'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-setup --skip-browser --skip-computer-use'; then
+              break
+            fi
+            if [ "$installer_attempt" -eq 3 ]; then
+              echo "Hermes installer failed after three attempts" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+          sudo -u hermes -H env HERMES_GIT_REF='${HermesGitRef}' bash -lc '
+            cd /home/hermes/.hermes/hermes-agent
+            if ! git cat-file -e "$HERMES_GIT_REF^{commit}" 2>/dev/null; then
+              git fetch --quiet --depth 1 origin "$HERMES_GIT_REF"
+            fi
+            git checkout --quiet --detach "$HERMES_GIT_REF"
+            test "$(git rev-parse HEAD)" = "$HERMES_GIT_REF"
+            venv/bin/python -m ensurepip --upgrade
+            venv/bin/python -m pip install -e ".[all]"
+          '
+
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            bash -lc \
+              'cd /home/hermes/.hermes/hermes-agent; npm ci --silent --workspaces=false'
+          env \
+            HOME=/home/hermes \
+            USER=hermes \
+            LOGNAME=hermes \
+            PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            npx --ignore-scripts -y 'agent-browser@^0.26.0' install --with-deps
+          chown -R hermes:hermes \
+            /home/hermes/.agent-browser \
+            /home/hermes/.hermes/hermes-agent/node_modules
+
+          install -d -m 0755 -o hermes -g hermes /home/hermes/.cache/ms-playwright
+          CHROME_DIR="$(find /home/hermes/.agent-browser/browsers -mindepth 1 -maxdepth 1 -type d -name 'chrome-*' | sort | tail -n 1)"
+          test -n "$CHROME_DIR"
+          ln -sfn "$CHROME_DIR" /home/hermes/.cache/ms-playwright/chromium-agent-browser
+          chown -h hermes:hermes /home/hermes/.cache/ms-playwright/chromium-agent-browser
+
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.hermes/bin:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes tools post-setup agent_browser
+
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes tools post-setup ddgs
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set web.search_backend ddgs
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set browser.cloud_provider local
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set browser.backend off
+          sudo -u hermes -H bash -lc \
+            'export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin; hermes config set browser.inactivity_timeout 60; hermes config set browser.command_timeout 30; hermes config set browser.record_sessions false; hermes config set browser.headed false; hermes config set browser.allow_private_urls false; hermes config set browser.auto_local_for_private_urls false; hermes config set browser.allow_unsafe_evaluate false; hermes config set browser.restrict_evaluate true; hermes config set browser.dialog_policy auto_dismiss; hermes config set security.website_blocklist.enabled true'
+          sudo -u hermes -H bash -lc \
+            'cd /home/hermes/.hermes/hermes-agent; venv/bin/python -c "import yaml; p=\"/home/hermes/.hermes/config.yaml\"; c=yaml.safe_load(open(p)) or {}; w=c.setdefault(\"security\", {}).setdefault(\"website_blocklist\", {}); w[\"enabled\"]=True; w[\"domains\"]=[\"localhost\",\"127.*\",\"0.0.0.0\",\"10.*\",\"100.64.*\",\"169.254.*\",\"172.16.*\",\"172.17.*\",\"172.18.*\",\"172.19.*\",\"172.20.*\",\"172.21.*\",\"172.22.*\",\"172.23.*\",\"172.24.*\",\"172.25.*\",\"172.26.*\",\"172.27.*\",\"172.28.*\",\"172.29.*\",\"172.30.*\",\"172.31.*\",\"192.168.*\",\"instance-data.ec2.internal\",\"metadata.google.internal\",\"*.compute.internal\",\"*.ec2.internal\",\"*.local\",\"*.lan\",\"*.internal\"]; open(p,\"w\").write(yaml.safe_dump(c, sort_keys=False))"'
+          sudo -u hermes -H bash -lc \
+            'export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin; hermes tools enable browser --platform cli; hermes tools enable browser --platform telegram; hermes config check'
+
+          sudo -u hermes -H env \
+            HERMES_DOCKER_BINARY=/usr/bin/podman \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set terminal.backend docker
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set terminal.docker_network false
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set terminal.container_memory 1024
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set terminal.container_disk 0
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set terminal.docker_shm_size 256m
+          sudo -u hermes -H bash -lc '
+            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
+            hermes config set terminal.container_cpu 1
+            hermes config set terminal.container_persistent true
+            hermes config set terminal.docker_mount_cwd_to_workspace false
+            hermes config set terminal.home_mode auto
+            hermes config set terminal.lifetime_seconds 300
+            hermes config set terminal.timeout 180
+            hermes config set agent.max_turns 90
+            hermes config set agent.reasoning_effort medium
+            hermes config set agent.verbose false
+          '
+
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set memory.memory_enabled true
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes config set memory.user_profile_enabled true
+          sudo -u hermes -H bash -lc '
+            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
+            hermes config set memory.flush_min_turns 6
+            hermes config set memory.memory_char_limit 2200
+            hermes config set memory.nudge_interval 10
+            hermes config set memory.user_char_limit 1375
+            hermes config set terminal.cwd .
+          '
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes tools enable memory
+          sudo -u hermes -H bash -lc '
+            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
+            for platform in cli telegram; do
+              hermes tools enable file --platform "$platform"
+              hermes tools enable terminal --platform "$platform"
+              hermes tools enable browser --platform "$platform"
+              hermes tools enable memory --platform "$platform"
+            done
+          '
+
+          if [ -n '${HermesStateBackupBucket}' ]; then
+            install -d -m 0700 -o hermes -g hermes /home/hermes/.restore
+            /usr/local/bin/aws s3 cp \
+              's3://${HermesStateBackupBucket}/${HermesStateBackupKey}' \
+              /home/hermes/.restore/hermes-state.tar.gz \
+              --region '${AWS::Region}' \
+              --only-show-errors
+            /home/hermes/.hermes/hermes-agent/venv/bin/python -c '
+          import pathlib
+          import tarfile
+
+          archive = "/home/hermes/.restore/hermes-state.tar.gz"
+          destination = "/home/hermes/.hermes"
+          allowed_roots = {"memories", "sessions", "workspace"}
+          with tarfile.open(archive, "r:gz") as source:
+              for member in source.getmembers():
+                  path = pathlib.PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] not in allowed_roots:
+                      raise SystemExit(f"unsafe or unsupported state path: {member.name}")
+                  if member.issym() or member.islnk() or member.isdev():
+                      raise SystemExit(f"links and device entries are not allowed: {member.name}")
+              source.extractall(destination)
+          '
+            chown -R hermes:hermes \
+              /home/hermes/.hermes/memories \
+              /home/hermes/.hermes/sessions \
+              /home/hermes/.hermes/workspace 2>/dev/null || true
+            rm -f /home/hermes/.restore/hermes-state.tar.gz
+          fi
+
+          cat >/usr/local/sbin/hermes-sync-runtime-config <<'RUNTIME_WRAPPER_EOF'
+          #!/bin/bash
+          set -euo pipefail
+          runtime_script="$(mktemp)"
+          trap 'rm -f "$runtime_script"' EXIT
+          /usr/local/bin/aws cloudformation describe-stack-resource \
+            --region '${AWS::Region}' \
+            --stack-name '${AWS::StackName}' \
+            --logical-resource-id HermesInstance \
+            --query StackResourceDetail.Metadata \
+            --output json | jq -er 'fromjson.RuntimeConfigScript' >"$runtime_script"
+          chmod 0700 "$runtime_script"
+          "$runtime_script"
+          RUNTIME_WRAPPER_EOF
+          chmod 0755 /usr/local/sbin/hermes-sync-runtime-config
+          chown root:root /usr/local/sbin/hermes-sync-runtime-config
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /usr/local/sbin/hermes-sync-runtime-config
+
+          sudo -u hermes -H env HERMES_DOCKER_BINARY=/usr/bin/podman \
+            podman pull docker.io/nikolaik/python-nodejs:python3.11-nodejs20
+
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            bash -lc \
+              'cd /home/hermes/.hermes/hermes-agent; npm ci --workspace web --silent --prefer-offline; npm run build --workspace web'
+
+          HERMES_UID="$(id -u hermes)"
+          systemctl start "user@$HERMES_UID.service"
+
+          sudo -u hermes -H env \
+            XDG_RUNTIME_DIR="/run/user/$HERMES_UID" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$HERMES_UID/bus" \
+            HERMES_DOCKER_BINARY=/usr/bin/podman \
+            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            /home/hermes/.local/bin/hermes gateway install \
+              --force \
+              --start-now \
+              --start-on-login
+
+          install -d -m 0755 -o hermes -g hermes \
+            /home/hermes/.config/systemd/user/hermes-gateway.service.d
+          cat >/home/hermes/.config/systemd/user/hermes-gateway.service.d/10-runtime-config.conf <<EOF
+          [Unit]
+          $([ '${GitCodingEnabled}' = true ] && printf '%s\n' 'Requires=hermes-credential-provisioner.service' 'After=hermes-credential-provisioner.service')
+
+          [Service]
+          ExecStartPre=/usr/local/sbin/hermes-sync-runtime-config
+          EOF
+          chown hermes:hermes \
+            /home/hermes/.config/systemd/user/hermes-gateway.service.d/10-runtime-config.conf
+          sudo -u hermes -H env \
+            XDG_RUNTIME_DIR="/run/user/$HERMES_UID" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$HERMES_UID/bus" \
+            systemctl --user daemon-reload
+          sudo -u hermes -H env \
+            XDG_RUNTIME_DIR="/run/user/$HERMES_UID" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$HERMES_UID/bus" \
+            systemctl --user restart hermes-gateway.service
+
+          cat >/etc/systemd/system/hermes-dashboard.service <<EOF
+          [Unit]
+          Description=Hermes Agent Dashboard
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=hermes
+          Group=hermes
+          WorkingDirectory=/home/hermes/.hermes
+          Environment="HOME=/home/hermes"
+          Environment="USER=hermes"
+          Environment="LOGNAME=hermes"
+          Environment="XDG_RUNTIME_DIR=/run/user/$HERMES_UID"
+          Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$HERMES_UID/bus"
+          Environment="HERMES_HOME=/home/hermes/.hermes"
+          Environment="HERMES_DOCKER_BINARY=/usr/bin/podman"
+          Environment="VIRTUAL_ENV=/home/hermes/.hermes/hermes-agent/venv"
+          Environment="PATH=/home/hermes/.hermes/node:/home/hermes/.local/bin:/home/hermes/.hermes/hermes-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          ExecStartPre=/usr/bin/test -f /home/hermes/.hermes/hermes-agent/hermes_cli/web_dist/index.html
+          ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main dashboard --host 127.0.0.1 --port 9119 --no-open --skip-build
+          Restart=always
+          RestartSec=5
+          KillMode=mixed
+          KillSignal=SIGTERM
+          TimeoutStopSec=30
+          StandardOutput=journal
+          StandardError=journal
+          UMask=0077
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          systemctl daemon-reload
+          systemctl enable --now hermes-dashboard.service
+
+          sudo -u hermes -H env \
+            XDG_RUNTIME_DIR="/run/user/$HERMES_UID" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$HERMES_UID/bus" \
+            systemctl --user is-active --quiet hermes-gateway.service
+          systemctl is-active --quiet hermes-dashboard.service
+          for health_attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:9119/api/health >/dev/null; then
+              break
+            fi
+            if [ "$health_attempt" -eq 60 ]; then
+              echo "Dashboard health check did not become ready" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          curl --fail --silent --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:9120/healthz >/dev/null
+          if [ -n '${PersonalToolsClientTokenSecretArn}' ]; then
+            sudo -u hermes -H env \
+              PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+              /home/hermes/.local/bin/hermes mcp test personal_tools
+          fi
+
+          touch /home/hermes/.bootstrap-complete
+          chown hermes:hermes /home/hermes/.bootstrap-complete
+          trap - ERR
+          signal_stack SUCCESS
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Component
+          Value: agent-runtime
+
+Outputs:
+  InstanceId:
+    Description: EC2 instance to target with AWS Systems Manager Session Manager.
+    Value: !Ref HermesInstance
+
+  Region:
+    Description: AWS Region where the stack was deployed.
+    Value: !Ref AWS::Region
+
+  ConnectCommand:
+    Description: Run this command locally to open a shell without SSH.
+    Value: !Sub aws ssm start-session --target ${HermesInstance} --region ${AWS::Region}
+
+  InstanceRoleArn:
+    Description: Runtime role ARN. Use this when another stack must grant the rebuilt Hermes host access.
+    Value: !GetAtt HermesInstanceRole.Arn
+
+  PinnedAmiId:
+    Description: Exact AMI used for this rebuild.
+    Value: !Ref AmiId
+
+  PinnedHermesGitRef:
+    Description: Exact Hermes source revision used for this rebuild.
+    Value: !Ref HermesGitRef
+
+  TelegramStatus:
+    Description: Whether this host was intentionally configured to start the production Telegram channel.
+    Value: !Ref TelegramEnabled

@@ -1,0 +1,38 @@
+diff --git a/tools/browser_tool.py b/tools/browser_tool.py
+index da04ca1..529cfa0 100644
+--- a/tools/browser_tool.py
++++ b/tools/browser_tool.py
+@@ -4245,9 +4245,7 @@ def browser_navigate(url: str, task_id: Optional[str] = None) -> str:
+         })
+ 
+     if (
+-        not _is_local_backend()
+-        and not auto_local_this_nav
+-        and not _allow_private_urls()
++        not _allow_private_urls()
+         and not _is_safe_url(url)
+     ):
+         return json.dumps({
+@@ -4303,9 +4301,8 @@ def browser_navigate(url: str, task_id: Optional[str] = None) -> str:
+         # Post-redirect SSRF check — if the browser followed a redirect to a
+         # private/internal address, block the result so the model can't read
+         # internal content via subsequent browser_snapshot calls.
+-        # Skipped for local backends (same rationale as the pre-nav check),
+-        # and for the hybrid local sidecar (we're already on a local browser
+-        # hitting a private URL by design).
++        # Enforced for local backends too: a host Chromium process can reach
++        # VPC services that the isolated terminal container cannot.
+         # Always-blocked floor (cloud metadata / IMDS) is enforced for every
+         # backend and even when auto_local_this_nav is true — see pre-nav
+         # check for rationale (#16234).
+@@ -4321,9 +4318,7 @@ def browser_navigate(url: str, task_id: Optional[str] = None) -> str:
+             })
+ 
+         if (
+-            not _is_local_backend()
+-            and not auto_local_this_nav
+-            and not _allow_private_urls()
++            not _allow_private_urls()
+             and final_url and final_url != url and not _is_safe_url(final_url)
+         ):
+             # Navigate away to a blank page to prevent snapshot leaks

@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Monthly Hermes AI inference cutoff and account-wide AWS cost budgets.
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: hermes-self-management
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9_.:/+=@-]{1,126}$'
+    Description: Neutral project tag applied to budget resources.
+
+  BudgetResourcePrefix:
+    Type: String
+    Default: hermes-budget
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9+=,.@_-]{1,62}$'
+    Description: Prefix for the managed cutoff policy and Budget action role.
+
+  MonthlyLimitUsd:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    Description: Monthly Amazon Bedrock and AWS Marketplace cost limit in USD.
+
+  NotificationEmail:
+    Type: String
+    AllowedPattern: "^\\S+@\\S+\\.\\S+$"
+    Description: Receives the 80 percent warning and 100 percent cutoff notification.
+
+  BudgetName:
+    Type: String
+    Default: hermes-model-monthly
+    Description: Stable name for the monthly Hermes AI inference budget.
+
+  AccountMonthlyLimitUsd:
+    Type: Number
+    Default: 50
+    MinValue: 1
+    Description: Monthly account-wide AWS cost limit in USD.
+
+  AccountBudgetName:
+    Type: String
+    Default: aws-account-monthly
+    Description: Stable name for the account-wide monthly AWS cost budget.
+
+  HermesInstanceRoleName:
+    Type: String
+    Description: Existing EC2 role whose Bedrock inference access is stopped at the budget threshold.
+
+Resources:
+  BedrockInferenceCutoffPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${BudgetResourcePrefix}-deny
+      Description: Explicitly denies Amazon Bedrock inference while the monthly Hermes budget action is active.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyBedrockRuntimeInference
+            Effect: Deny
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+              - bedrock:InvokeModelWithBidirectionalStream
+              - bedrock:StartAsyncInvoke
+              - bedrock:InvokeInlineAgent
+              - bedrock:CallWithBearerToken
+            Resource: "*"
+          - Sid: DenyBedrockMantleInference
+            Effect: Deny
+            Action:
+              - bedrock-mantle:CreateInference
+              - bedrock-mantle:CallWithBearerToken
+            Resource: "*"
+
+  BudgetActionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${BudgetResourcePrefix}-action
+      Description: Allows only this AWS Budget to attach or detach policies on the Hermes EC2 role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${BudgetName}
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: ManageOnlyHermesRolePolicies
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${HermesInstanceRoleName}
+
+  MonthlyBedrockBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Ref BudgetName
+        BudgetLimit:
+          Amount: !Ref MonthlyLimitUsd
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        FilterExpression:
+          Or:
+            - Dimensions:
+                Key: SERVICE
+                MatchOptions:
+                  - EQUALS
+                Values:
+                  - Amazon Bedrock
+            - Dimensions:
+                Key: BILLING_ENTITY
+                MatchOptions:
+                  - EQUALS
+                Values:
+                  - AWS Marketplace
+        Metrics:
+          - UnblendedCost
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+      ResourceTags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Component
+          Value: bedrock-budget
+
+  MonthlyAccountBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Ref AccountBudgetName
+        BudgetLimit:
+          Amount: !Ref AccountMonthlyLimitUsd
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+      ResourceTags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Component
+          Value: account-budget
+
+  AutomaticBedrockCutoff:
+    Type: AWS::Budgets::BudgetsAction
+    DependsOn:
+      - MonthlyBedrockBudget
+      - BedrockInferenceCutoffPolicy
+      - BudgetActionExecutionRole
+    Properties:
+      BudgetName: !Ref BudgetName
+      NotificationType: ACTUAL
+      ActionType: APPLY_IAM_POLICY
+      ApprovalModel: AUTOMATIC
+      ActionThreshold:
+        Type: PERCENTAGE
+        Value: 100
+      Definition:
+        IamActionDefinition:
+          PolicyArn: !Ref BedrockInferenceCutoffPolicy
+          Roles:
+            - !Ref HermesInstanceRoleName
+      ExecutionRoleArn: !GetAtt BudgetActionExecutionRole.Arn
+      Subscribers:
+        - Type: EMAIL
+          Address: !Ref NotificationEmail
+      ResourceTags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Component
+          Value: bedrock-budget-cutoff
+
+Outputs:
+  Budget:
+    Description: Monthly Amazon Bedrock and AWS Marketplace budget name.
+    Value: !Ref MonthlyBedrockBudget
+
+  AccountBudget:
+    Description: Monthly account-wide AWS cost budget name.
+    Value: !Ref MonthlyAccountBudget
+
+  CutoffActionId:
+    Description: AWS Budget action ID that automatically applies the deny policy.
+    Value: !GetAtt AutomaticBedrockCutoff.ActionId
+
+  CutoffPolicyArn:
+    Description: Deny policy attached to Hermes after the budget exceeds 100 percent.
+    Value: !Ref BedrockInferenceCutoffPolicy
+
+  TargetRole:
+    Description: Hermes EC2 role affected by the cutoff.
+    Value: !Ref HermesInstanceRoleName

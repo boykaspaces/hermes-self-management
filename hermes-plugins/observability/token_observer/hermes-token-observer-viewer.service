@@ -1,0 +1,21 @@
+[Unit]
+Description=Hermes Token Observer Web Viewer
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.hermes/plugins/observability/token_observer
+Environment=HERMES_HOME=%h/.hermes
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 %h/.hermes/plugins/observability/token_observer/viewer.py --host 127.0.0.1 --port 9120
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=default.target

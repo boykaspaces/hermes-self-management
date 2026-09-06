@@ -1,0 +1,93 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:CreateStack",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStacks",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:ListChangeSets",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack"
+      ],
+      "Resource": "arn:aws:cloudformation:${BUDGET_REGION}:${AWS_ACCOUNT_ID}:stack/${BUDGET_STACK_NAME}/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "budgets:ModifyBudget",
+        "budgets:ViewBudget",
+        "budgets:CreateBudgetAction",
+        "budgets:DeleteBudgetAction",
+        "budgets:DescribeBudgetAction",
+        "budgets:DescribeBudgetActionHistories",
+        "budgets:DescribeBudgetActionsForAccount",
+        "budgets:DescribeBudgetActionsForBudget",
+        "budgets:ListTagsForResource",
+        "budgets:TagResource",
+        "budgets:UntagResource",
+        "budgets:UpdateBudgetAction",
+        "aws-portal:ModifyBilling",
+        "aws-portal:ViewBilling"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${BUDGET_STACK_NAME}-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicy",
+        "iam:DeletePolicyVersion",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListEntitiesForPolicy",
+        "iam:ListPolicyVersions",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${BUDGET_STACK_NAME}-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${BUDGET_STACK_NAME}-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "budgets.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${HERMES_ROLE_NAME}"
+    }
+  ]
+}

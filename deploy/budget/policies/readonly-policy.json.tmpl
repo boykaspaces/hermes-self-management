@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:GetTemplate"
+      ],
+      "Resource": "arn:aws:cloudformation:${BUDGET_REGION}:${AWS_ACCOUNT_ID}:stack/${BUDGET_STACK_NAME}/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "budgets:ViewBudget",
+        "budgets:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:budgets::${AWS_ACCOUNT_ID}:budget/${MODEL_BUDGET_NAME}",
+        "arn:aws:budgets::${AWS_ACCOUNT_ID}:budget/${ACCOUNT_BUDGET_NAME}"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "budgets:DescribeBudgetActionsForBudget",
+        "budgets:DescribeBudgetAction",
+        "budgets:DescribeBudgetActionHistories",
+        "budgets:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:budgets::${AWS_ACCOUNT_ID}:budget/${MODEL_BUDGET_NAME}/action/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "aws-portal:ViewBilling",
+        "billing:GetBillingViewData"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${HERMES_ROLE_NAME}"
+    }
+  ]
+}

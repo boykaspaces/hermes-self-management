@@ -1,0 +1,20 @@
+# File Map
+
+Status: Current index
+
+| Path | Owns | Read when |
+|---|---|---|
+| `README.md` | Repository entry, validation, and related components | Entering the repository |
+| `PROJECT.md` | Stable identity and source-of-truth boundaries | Maintaining the project |
+| `AGENTS.md` | Repository-wide AI instructions | Before changing files |
+| `deploy/README.md` | Deployment domain router | Choosing a Stack or operation |
+| `deploy/minimal/cloudformation.yaml` | Hermes host and bootstrap implementation | Changing runtime infrastructure |
+| `deploy/minimal/README.md` | Current host deployment and validation flow | Deploying or upgrading Hermes |
+| `deploy/minimal/HERMES_UPGRADE_RUNBOOK.md` | Version/patch migration and rollback gate | Changing Hermes revision |
+| `deploy/minimal/MODEL_PROVIDER_STRATEGY.md` | Subscription-first provider policy | Changing model authentication or fallback |
+| `deploy/minimal/patches/` | Version-specific upstream patch evidence | Porting or auditing a patch set |
+| `deploy/minimal/policies/` | Parameterized host deployer/operator examples | Granting AWS access |
+| `deploy/hermes-runtime-secrets/` | Retained Telegram Secret Stack and policy examples | Managing runtime credentials |
+| `deploy/budget/` | Model cutoff/account budget Stack and policy examples | Managing cost controls |
+| `hermes-plugins/observability/token_observer/` | Redacted usage collection, reports, viewer, service, and tests | Changing observability |
+| `scripts/validate.sh` | Repository-wide static and unit validation | Before release or publication |

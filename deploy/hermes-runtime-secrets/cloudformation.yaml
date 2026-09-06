@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Retained runtime Secret container for the Hermes Telegram channel.
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: hermes-self-management
+    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9_.:/+=@-]{1,126}$'
+    Description: Neutral project tag applied to the retained Secret.
+
+  TelegramRuntimeSecretName:
+    Type: String
+    Default: hermes-runtime-telegram
+    AllowedPattern: "^[A-Za-z0-9/_+=.@-]+$"
+    ConstraintDescription: Must be a valid Secrets Manager secret name.
+    Description: Stable Secret name shared across blue/green Hermes rebuilds.
+
+Resources:
+  TelegramRuntimeSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: RetainExceptOnCreate
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref TelegramRuntimeSecretName
+      Description: Telegram runtime credential and caller allowlist for Hermes. Populate the JSON value out of band.
+      SecretString: "{}"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Component
+          Value: hermes-runtime-credential
+
+Outputs:
+  TelegramRuntimeSecretArn:
+    Description: Pass this ARN to deploy/minimal/cloudformation.yaml. The secret value never enters CloudFormation parameters or outputs.
+    Value: !Ref TelegramRuntimeSecret
+
+  RequiredJSONKeys:
+    Description: Non-sensitive schema for the out-of-band Secret value.
+    Value: TELEGRAM_BOT_TOKEN,TELEGRAM_ALLOWED_USERS,TELEGRAM_HOME_CHANNEL,TELEGRAM_HOME_CHANNEL_THREAD_ID(optional)

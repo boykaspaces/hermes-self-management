@@ -1,0 +1,32 @@
+[Unit]
+Description=Hermes Agent Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+WorkingDirectory=/home/hermes/.hermes
+Environment="HOME=/home/hermes"
+Environment="USER=hermes"
+Environment="LOGNAME=hermes"
+Environment="XDG_RUNTIME_DIR=/run/user/1001"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1001/bus"
+Environment="HERMES_HOME=/home/hermes/.hermes"
+Environment="HERMES_DOCKER_BINARY=/usr/bin/podman"
+Environment="VIRTUAL_ENV=/home/hermes/.hermes/hermes-agent/venv"
+Environment="PATH=/home/hermes/.hermes/node:/home/hermes/.local/bin:/home/hermes/.hermes/hermes-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStartPre=/usr/bin/test -f /home/hermes/.hermes/hermes-agent/hermes_cli/web_dist/index.html
+ExecStart=/home/hermes/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main dashboard --host 127.0.0.1 --port 9119 --no-open --skip-build
+Restart=always
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
