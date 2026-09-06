@@ -32,6 +32,7 @@ fi
 patches=(
   "$patch_set/P-002-browser-private-url.patch"
   "$patch_set/P-003-podman-reuse.patch"
+  "$patch_set/P-005-egress-allowlist-only.patch"
 )
 
 verify_files() {
@@ -39,7 +40,11 @@ verify_files() {
     cd "$repo"
     sha256sum --check "$patch_set/PATCHED_SHA256SUMS"
     git diff --check
-    "$python_bin" -m py_compile tools/browser_tool.py tools/environments/docker.py
+    "$python_bin" -m py_compile \
+      tools/browser_tool.py \
+      tools/environments/docker.py \
+      hermes_cli/proxy_cli.py \
+      tests/test_iron_proxy_cli.py
   )
 }
 

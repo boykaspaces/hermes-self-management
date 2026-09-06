@@ -7,13 +7,13 @@ Active Task: None
 ## Current summary
 
 The public runtime component is independently deployable and validated. Its
-repository-maintenance context follows the shared cross-repository Task
-protocol without containing production state.
+OAuth-only coding path now supports an explicit allowlist-only egress setup,
+without adding consuming deployment state.
 
 ## Primary focus
 
-No active Task. Create a local Component Task when repository work needs
-persistent tracking.
+No active Component Task. The completed TASK-002 candidate is ready for the
+parent `personal-hermes-agent:TASK-008` deployment and system acceptance.
 
 ## Active constraints
 

@@ -1,0 +1,233 @@
+diff --git a/hermes_cli/proxy_cli.py b/hermes_cli/proxy_cli.py
+index aab1c6ad3..80df5d055 100644
+--- a/hermes_cli/proxy_cli.py
++++ b/hermes_cli/proxy_cli.py
+@@ -82,6 +82,11 @@ def register_cli(parent_parser: argparse.ArgumentParser) -> None:
+              "preserve tokens for providers that already had one — avoids "
+              "401-ing already-running sandboxes on re-setup).",
+     )
++    setup.add_argument(
++        "--allowlist-only", action="store_true",
++        help="Configure default-deny sandbox egress from "
++             "proxy.extra_allowed_hosts without provider secret mappings.",
++    )
+     setup.add_argument(
+         "--restart", dest="restart", action="store_true", default=None,
+         help="If a daemon is already running, restart it automatically after "
+@@ -151,6 +156,15 @@ def cmd_install(args: argparse.Namespace) -> int:
+ 
+ def cmd_setup(args: argparse.Namespace) -> int:
+     console = Console()
++    allowlist_only = bool(getattr(args, "allowlist_only", False))
++    if allowlist_only and (
++        bool(args.from_bitwarden) or bool(getattr(args, "rotate_tokens", False))
++    ):
++        console.print(
++            "[red]✗ --allowlist-only cannot be combined with "
++            "--from-bitwarden or --rotate-tokens.[/red]"
++        )
++        return 1
+     console.print(Panel.fit(
+         "[bold]iron-proxy setup[/bold]\n\n"
+         "Routes outbound sandbox traffic through a local TLS-intercepting\n"
+@@ -185,10 +199,13 @@ def cmd_setup(args: argparse.Namespace) -> int:
+ 
+     # ------------------------------------------------------------------ mint
+     console.print()
+-    console.print("[bold]Step 3[/bold]  Mint proxy tokens for known providers")
++    if allowlist_only:
++        console.print("[bold]Step 3[/bold]  Configure explicit egress allowlist")
++    else:
++        console.print("[bold]Step 3[/bold]  Mint proxy tokens for known providers")
+ 
+     available_env_names: List[str] = []
+-    if args.from_bitwarden:
++    if not allowlist_only and args.from_bitwarden:
+         cfg = load_config()
+         bw_cfg = (cfg.get("secrets") or {}).get("bitwarden") or {}
+         if not bw_cfg.get("enabled"):
+@@ -240,7 +257,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
+                 "the host process env at start time)."
+             )
+             return 1
+-    else:
++    elif not allowlist_only:
+         # Env-based discovery reads os.environ.  Operators commonly keep their
+         # provider keys only in ~/.hermes/.env (loaded automatically when the
+         # agent runs, but NOT exported into an interactive shell).  Fall back
+@@ -254,7 +271,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
+                 f"~/.hermes/.env for discovery.[/dim]"
+             )
+ 
+-    discovered = ip.discover_provider_mappings(
++    discovered = [] if allowlist_only else ip.discover_provider_mappings(
+         available_env_names=available_env_names or None,
+     )
+ 
+@@ -262,7 +279,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
+     # explicitly requested rotation.  This prevents re-running `hermes
+     # egress setup` from invalidating tokens baked into already-running
+     # sandboxes.
+-    existing = ip.load_mappings()
++    existing = [] if allowlist_only else ip.load_mappings()
+     rotate = bool(getattr(args, "rotate_tokens", False))
+ 
+     # P3 confirmation gate: --rotate-tokens invalidates every running
+@@ -317,7 +334,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
+         rotate=rotate,
+     )
+ 
+-    if not mappings:
++    if not mappings and not allowlist_only:
+         console.print(
+             "  [yellow]No known provider API keys found in env/Bitwarden.[/yellow]"
+         )
+@@ -331,7 +348,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
+     # Warn the operator about providers we recognize but can't proxy
+     # (AWS Bedrock SigV4, GCP Vertex service-account OAuth).  These still
+     # work — they just bypass the egress isolation.
+-    uncovered = ip.discover_uncovered_providers(
++    uncovered = [] if allowlist_only else ip.discover_uncovered_providers(
+         available_env_names=available_env_names or None,
+     )
+     if uncovered:
+@@ -384,9 +401,18 @@ def cmd_setup(args: argparse.Namespace) -> int:
+     proxy_cfg["tunnel_port"] = tunnel_port
+ 
+     extra_hosts = list(proxy_cfg.get("extra_allowed_hosts") or [])
+-    allowed = list(ip._DEFAULT_ALLOWED_HOSTS) + [
+-        h for h in extra_hosts if h not in ip._DEFAULT_ALLOWED_HOSTS
+-    ]
++    if allowlist_only:
++        allowed = list(dict.fromkeys(extra_hosts))
++        if not allowed:
++            console.print(
++                "  [red]✗ --allowlist-only requires at least one "
++                "proxy.extra_allowed_hosts entry.[/red]"
++            )
++            return 1
++    else:
++        allowed = list(ip._DEFAULT_ALLOWED_HOSTS) + [
++            h for h in extra_hosts if h not in ip._DEFAULT_ALLOWED_HOSTS
++        ]
+ 
+     audit_log_path = ip._proxy_state_dir() / "audit.log"
+     # Pre-create the audit log with 0o600.  On the pinned v0.39 the
+@@ -438,6 +464,10 @@ def cmd_setup(args: argparse.Namespace) -> int:
+     proxy_cfg["enabled"] = True
+     proxy_cfg.setdefault("auto_install", True)
+     proxy_cfg.setdefault("enforce_on_docker", True)
++    if allowlist_only:
++        proxy_cfg["allowlist_only"] = True
++    else:
++        proxy_cfg.pop("allowlist_only", None)
+     # CRITICAL: do NOT silently downgrade credential_source on re-run.
+     # If the operator previously configured `bitwarden` mode (e.g. for
+     # rotation), running `hermes egress setup` again WITHOUT
+diff --git a/tests/test_iron_proxy_cli.py b/tests/test_iron_proxy_cli.py
+index 736f32827..f8c272eba 100644
+--- a/tests/test_iron_proxy_cli.py
++++ b/tests/test_iron_proxy_cli.py
+@@ -45,6 +45,7 @@ def _args(**overrides):
+         from_bitwarden=False,
+         no_bitwarden=False,
+         rotate_tokens=False,
++        allowlist_only=False,
+         restart=None,
+         show_tokens=False,
+     )
+@@ -115,6 +116,84 @@ def test_cmd_setup_from_bitwarden_refuses_on_empty_vault(hermes_home, monkeypatc
+     assert rc == 1
+ 
+ 
++def test_cmd_setup_allowlist_only_uses_only_explicit_hosts(hermes_home, monkeypatch):
++    from hermes_cli.config import load_config, save_config
++
++    cfg = load_config()
++    cfg.setdefault("proxy", {})["extra_allowed_hosts"] = [
++        "github.com",
++        "objects.githubusercontent.com",
++        "github.com",
++    ]
++    save_config(cfg)
++
++    monkeypatch.setattr(
++        ip, "find_iron_proxy", lambda **kw: hermes_home / "iron-proxy"
++    )
++    monkeypatch.setattr(ip, "iron_proxy_version", lambda b: "test")
++    monkeypatch.setattr(
++        ip,
++        "ensure_ca_cert",
++        lambda **kw: (hermes_home / "ca.crt", hermes_home / "ca.key"),
++    )
++    monkeypatch.setattr(ip, "get_status", lambda: ip.ProxyStatus())
++    monkeypatch.setattr(
++        ip,
++        "discover_provider_mappings",
++        lambda **kw: pytest.fail("allowlist-only must not discover provider keys"),
++    )
++
++    captured = {}
++    real_build = ip.build_proxy_config
++
++    def capture_build(**kwargs):
++        captured.update(kwargs)
++        return real_build(**kwargs)
++
++    monkeypatch.setattr(ip, "build_proxy_config", capture_build)
++
++    rc = proxy_cli.cmd_setup(_args(allowlist_only=True, restart=False))
++
++    assert rc == 0
++    assert captured["mappings"] == []
++    assert captured["allowed_hosts"] == [
++        "github.com",
++        "objects.githubusercontent.com",
++    ]
++    assert ip.load_mappings() == []
++    assert load_config()["proxy"]["allowlist_only"] is True
++
++
++def test_cmd_setup_allowlist_only_requires_explicit_host(
++    hermes_home, monkeypatch,
++):
++    monkeypatch.setattr(
++        ip, "find_iron_proxy", lambda **kw: hermes_home / "iron-proxy"
++    )
++    monkeypatch.setattr(ip, "iron_proxy_version", lambda b: "test")
++    monkeypatch.setattr(
++        ip,
++        "ensure_ca_cert",
++        lambda **kw: (hermes_home / "ca.crt", hermes_home / "ca.key"),
++    )
++    monkeypatch.setattr(
++        ip,
++        "write_proxy_config",
++        lambda config: pytest.fail("invalid allowlist-only config was written"),
++    )
++
++    assert proxy_cli.cmd_setup(_args(allowlist_only=True)) == 1
++
++
++@pytest.mark.parametrize("conflict", ["from_bitwarden", "rotate_tokens"])
++def test_cmd_setup_allowlist_only_rejects_secret_mapping_options(
++    hermes_home, conflict,
++):
++    assert proxy_cli.cmd_setup(
++        _args(allowlist_only=True, **{conflict: True})
++    ) == 1
++
++
+ 
+ 
+ 
+@@ -284,6 +363,9 @@ def test_register_cli_uses_egress_command_dest():
+     assert hasattr(args, "egress_command")
+     assert not hasattr(args, "proxy_command")
+ 
++    setup_args = parser.parse_args(["setup", "--allowlist-only"])
++    assert setup_args.allowlist_only is True
++
+ 
+ 
+ 

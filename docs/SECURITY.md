@@ -15,6 +15,9 @@
   providers, and updates.
 - Coding-container egress is separately catalogued and routed through the
   configured proxy when Git coding is enabled.
+- Subscription OAuth does not require a dummy model Provider API Key: the
+  managed allowlist-only setup writes no provider secret mappings and admits
+  only the explicit coding-host catalogue.
 - Private, loopback, link-local, and cloud metadata targets remain denied.
 - Adding a domain or disabling isolation is an operator-reviewed security
   change, not agent self-maintenance.
