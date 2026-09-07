@@ -14,8 +14,9 @@ immutable, checksummed S3 bundle.
 
 ## Primary focus
 
-No active Task. The completed TASK-005 candidate is ready for publication and
-integration by `personal-hermes-agent:TASK-014`.
+No active Task. The completed TASK-006 corrects the byte-preservation issue
+found during `personal-hermes-agent:TASK-015` production validation; the updated
+candidate is ready for final production reconciliation.
 
 ## Active constraints
 
