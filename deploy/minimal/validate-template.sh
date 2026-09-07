@@ -103,6 +103,7 @@ rg -q 'egress setup --allowlist-only --no-bitwarden --no-restart' "$runtime_conf
 rg -Fq 'HERMES_BIN_DIR="$(dirname "$HERMES_BIN")"' "$runtime_config"
 rg -Fq 'ExecStart=$HERMES_BIN_DIR/hermes-credential-provisioner' "$runtime_config"
 rg -Fq 'profile["telegram"][' "$runtime_profile_apply"
+rg -Fq -- "--output json | jq -erj '.Parameter.Value'" "$template"
 rg -Fq 'config.setdefault("skills", {}).update(profile["skills"])' "$runtime_profile_apply"
 rg -Fq 'memory_profile["write_approval"]' "$runtime_profile_apply"
 rg -Fq 'profile["proxy"]["extra_allowed_hosts"]' "$runtime_config"

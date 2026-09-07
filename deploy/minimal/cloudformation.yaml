@@ -423,8 +423,7 @@ Resources:
           if "$AWS_CLI" ssm get-parameter \
             --name "$RUNTIME_PROFILE_PARAMETER" \
             --region "$AWS_REGION" \
-            --query Parameter.Value \
-            --output text >"$PROFILE_WORK_FILE"; then
+            --output json | jq -erj '.Parameter.Value' >"$PROFILE_WORK_FILE"; then
             if ! "$HERMES_PYTHON" \
               "$RUNTIME_RELEASE_DIR/validate_runtime_profile.py" \
               "$PROFILE_WORK_FILE"; then
