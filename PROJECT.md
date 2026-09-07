@@ -22,6 +22,7 @@ Hermes agent while keeping production state and identity outside public source.
 
 | Artifact | Purpose | Read when |
 |---|---|---|
+| [`.hermes/context-kit.json`](./.hermes/context-kit.json) | Adopted Context Kit contract | Changing or validating project context |
 | [`.hermes/context-index.md`](./.hermes/context-index.md) | Current-first repository context | Starting or resuming maintenance |
 | [`.hermes/state.md`](./.hermes/state.md) | Current repository summary | Asking what work is active |
 | [`tasks/current.md`](./tasks/current.md) | Primary active Task pointer | Continuing current component work |

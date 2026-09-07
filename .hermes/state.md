@@ -6,17 +6,14 @@ Active Task: None
 
 ## Current summary
 
-The public runtime component is independently deployable and validated. Runtime
-configuration, managed patches, and Token Observer are delivered as one
-immutable, checksummed S3 bundle while CloudFormation owns its identity and a
-small loader; User Data remains pinned and unchanged. The bundle retains the
-completed OAuth-only allowlist egress and Rootless Podman routing work from
-TASK-002.
+The public runtime component explicitly adopts Context Kit 0.2.0 project spec
+v1 with the repository profile. Runtime, deployment, and security ownership is
+unchanged, and both protocol and repository-native validation pass.
 
 ## Primary focus
 
-No active Task. The completed TASK-004 candidate is ready for publication and
-deployment acceptance by `personal-hermes-agent:TASK-013`.
+No active Task. The Context Kit adoption candidate is ready for integration
+acceptance by `personal-hermes-agent:TASK-014`.
 
 ## Active constraints
 
