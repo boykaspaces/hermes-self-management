@@ -4,6 +4,8 @@
 
 - Start with `README.md`; use `.hermes/context-index.md` for repository
   maintenance state, then follow the narrowest deployment or plugin route.
+- Read `.hermes/context-kit.json` before changing project context; it owns the
+  adopted public protocol version, profile, and optional features.
 - Prefer CloudFormation, scripts, policy templates, tests, and the nearest
   README over summaries.
 - Load version-specific patch files only when changing or validating that patch
@@ -11,7 +13,8 @@
 
 ## Project and system context
 
-- Use `project-context-management` from the reviewed Hermes Context Kit for
+- Use `project-context-management` from the Context Kit release pinned by
+  `.hermes/context-kit.json` for
   this repository's Task, State, Checkpoint, ADR, and index mutations.
 - Also use `multi-repo-system-management` when a Task has a parent System Task,
   changes another repository, advances a component revision, or requires an

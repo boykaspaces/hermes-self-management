@@ -7,24 +7,28 @@ set -euo pipefail
 : "${HERMES_BIN:?HERMES_BIN is required}"
 : "${HERMES_PYTHON:?HERMES_PYTHON is required}"
 : "${MCP_SECRET_ARN:=}"
-: "${MCP_URL:=}"
 : "${TELEGRAM_SECRET_ARN:=}"
-: "${TELEGRAM_STATE_PARAMETER:?TELEGRAM_STATE_PARAMETER is required}"
-: "${OPENAI_CODEX_MODEL:?OPENAI_CODEX_MODEL is required}"
 : "${GIT_CODING_ENABLED:?GIT_CODING_ENABLED is required}"
 : "${CREDENTIAL_LEASE_URL:=}"
-: "${CREDENTIAL_PROFILE_ID:=}"
 : "${CREDENTIAL_ARTIFACT_BUCKET:=}"
 : "${CREDENTIAL_ARTIFACT_KEY:=}"
 : "${CREDENTIAL_ARTIFACT_VERSION:=}"
 : "${CREDENTIAL_ARTIFACT_SHA256:=}"
 : "${CODING_BASE_IMAGE:=}"
 : "${HERMES_RUNTIME_BUNDLE_DIR:?HERMES_RUNTIME_BUNDLE_DIR is required}"
+: "${HERMES_RUNTIME_PROFILE_FILE:?HERMES_RUNTIME_PROFILE_FILE is required}"
 
 MANAGED_PATCH_ARCHIVE="$HERMES_RUNTIME_BUNDLE_DIR/managed-patches.tar.gz"
 TOKEN_OBSERVER_ARCHIVE="$HERMES_RUNTIME_BUNDLE_DIR/token-observer.tar.gz"
+PROFILE_VALIDATOR="$HERMES_RUNTIME_BUNDLE_DIR/validate_runtime_profile.py"
 test -f "$MANAGED_PATCH_ARCHIVE"
 test -f "$TOKEN_OBSERVER_ARCHIVE"
+test -f "$PROFILE_VALIDATOR"
+"$HERMES_PYTHON" "$PROFILE_VALIDATOR" "$HERMES_RUNTIME_PROFILE_FILE"
+
+MCP_URL="$(jq -er '.mcp.personal_tools_url' "$HERMES_RUNTIME_PROFILE_FILE")"
+TELEGRAM_ENABLED="$(jq -r '.telegram.enabled' "$HERMES_RUNTIME_PROFILE_FILE")"
+CREDENTIAL_PROFILE_ID="$(jq -er '.credential.profile_id' "$HERMES_RUNTIME_PROFILE_FILE")"
 
 cd "$HERMES_HOME/hermes-agent"
 "$HERMES_PYTHON" - "$MANAGED_PATCH_ARCHIVE" "$HERMES_HOME/managed-patches" <<'PY'
@@ -85,6 +89,25 @@ env \
   HERMES_PATCH_SET="$HERMES_HOME/managed-patches/patches/hermes-v0.21.0-29112bef" \
   HERMES_PYTHON="$HERMES_PYTHON" \
   "$HERMES_HOME/managed-patches/apply-hermes-patches.sh" apply
+
+if [ -n "$MCP_SECRET_ARN" ]; then
+  MCP_SECRET_AUTHORIZED=true
+else
+  MCP_SECRET_AUTHORIZED=false
+fi
+"$HERMES_PYTHON" "$HERMES_RUNTIME_BUNDLE_DIR/apply_runtime_profile.py" \
+  --profile "$HERMES_RUNTIME_PROFILE_FILE" \
+  --config "$HERMES_HOME/config.yaml" \
+  --git-coding-enabled "$GIT_CODING_ENABLED" \
+  --mcp-secret-authorized "$MCP_SECRET_AUTHORIZED"
+
+"$HERMES_BIN" tools enable memory
+for platform in cli telegram; do
+  "$HERMES_BIN" tools enable file --platform "$platform"
+  "$HERMES_BIN" tools enable terminal --platform "$platform"
+  "$HERMES_BIN" tools enable browser --platform "$platform"
+  "$HERMES_BIN" tools enable memory --platform "$platform"
+done
 
 if [ "$GIT_CODING_ENABLED" = true ]; then
   CREDENTIAL_RUNTIME="$HERMES_HOME/runtime/credential-agent"
@@ -177,7 +200,9 @@ EOF
   env \
     CREDENTIAL_MOUNT="/run/user/$HERMES_UID/hermes-credentials:/run/hermes/credentials:ro" \
     CREDENTIAL_IMAGE="$CREDENTIAL_IMAGE" \
+    RUNTIME_PROFILE_FILE="$HERMES_RUNTIME_PROFILE_FILE" \
     "$HERMES_PYTHON" -c '
+import json
 import os
 import yaml
 from utils import atomic_yaml_write
@@ -185,6 +210,8 @@ from utils import atomic_yaml_write
 path = "/home/hermes/.hermes/config.yaml"
 with open(path, encoding="utf-8") as source:
     config = yaml.safe_load(source) or {}
+with open(os.environ["RUNTIME_PROFILE_FILE"], encoding="utf-8") as source:
+    profile = json.load(source)
 
 terminal = config.setdefault("terminal", {})
 terminal["backend"] = "docker"
@@ -207,25 +234,9 @@ proxy.update({
     "enforce_on_docker": True,
     "allow_env_fallback": False,
     "upstream_deny_cidrs": None,
-    "extra_allowed_hosts": [
-        "github.com",
-        "api.github.com",
-        "objects.githubusercontent.com",
-        "raw.githubusercontent.com",
-        "codeload.github.com",
-        "github-releases.githubusercontent.com",
-        "proxy.golang.org",
-        "sum.golang.org",
-        "storage.googleapis.com",
-        "registry.npmjs.org",
-    ],
+    "extra_allowed_hosts": profile["proxy"]["extra_allowed_hosts"],
 })
 config.setdefault("checkpoints", {})["enabled"] = True
-config.setdefault("skills", {}).update({
-    "guard_agent_created": True,
-    "write_approval": False,
-})
-config.setdefault("memory", {})["write_approval"] = False
 approvals = config.setdefault("approvals", {})
 approvals["mode"] = "smart"
 approvals["denial_breaker_threshold"] = 3
@@ -254,7 +265,9 @@ if [ ! -f "$HERMES_HOME/.env" ]; then
   install -m 0600 /dev/null "$HERMES_HOME/.env"
 fi
 
-if [ -n "$MCP_SECRET_ARN" ]; then
+sed -i '/^MCP_PERSONAL_TOOLS_API_KEY=/d' "$HERMES_HOME/.env"
+if [ -n "$MCP_URL" ]; then
+  test -n "$MCP_SECRET_ARN"
   MCP_PERSONAL_TOOLS_API_KEY="$("$AWS_CLI" secretsmanager get-secret-value \
     --secret-id "$MCP_SECRET_ARN" \
     --region "$AWS_REGION" \
@@ -264,47 +277,14 @@ if [ -n "$MCP_SECRET_ARN" ]; then
   case "$MCP_PERSONAL_TOOLS_API_KEY" in
     *[!A-Za-z0-9_-]*) echo "Personal Tools client token contains unsupported dotenv characters" >&2; exit 1 ;;
   esac
-  sed -i '/^MCP_PERSONAL_TOOLS_API_KEY=/d' "$HERMES_HOME/.env"
   printf 'MCP_PERSONAL_TOOLS_API_KEY=%s\n' "$MCP_PERSONAL_TOOLS_API_KEY" >>"$HERMES_HOME/.env"
   unset MCP_PERSONAL_TOOLS_API_KEY
-  env MCP_URL="$MCP_URL" "$HERMES_PYTHON" -c '
-import os
-import yaml
-from utils import atomic_yaml_write
-
-path = "/home/hermes/.hermes/config.yaml"
-with open(path, encoding="utf-8") as source:
-    config = yaml.safe_load(source) or {}
-config.setdefault("mcp_servers", {})["personal_tools"] = {
-    "url": os.environ["MCP_URL"],
-    "connect_timeout": 15,
-    "headers": {
-        "X-Hermes-Gateway-Token": "Bearer ${MCP_PERSONAL_TOOLS_API_KEY}",
-    },
-}
-atomic_yaml_write(path, config)
-'
 fi
 
-TELEGRAM_ENABLED="$("$AWS_CLI" ssm get-parameter \
-  --name "$TELEGRAM_STATE_PARAMETER" \
-  --region "$AWS_REGION" \
-  --query Parameter.Value \
-  --output text)"
 case "$TELEGRAM_ENABLED" in
   true|false) ;;
   *) echo "Invalid Telegram desired state" >&2; exit 1 ;;
 esac
-"$HERMES_BIN" config set platforms.telegram.enabled "$TELEGRAM_ENABLED"
-"$HERMES_BIN" config set platforms.telegram.reactions true
-"$HERMES_BIN" config set display.platforms.telegram.streaming true
-"$HERMES_BIN" config set display.platforms.telegram.tool_progress all
-"$HERMES_BIN" config set display.platforms.telegram.tool_progress_grouping accumulate
-"$HERMES_BIN" config set display.platforms.telegram.long_running_notifications true
-"$HERMES_BIN" config set display.platforms.telegram.cleanup_progress true
-"$HERMES_BIN" config set agent.gateway_notify_interval 60
-"$HERMES_BIN" config set skills.write_approval false
-"$HERMES_BIN" config set memory.write_approval false
 sed -i \
   -e '/^TELEGRAM_BOT_TOKEN=/d' \
   -e '/^TELEGRAM_ALLOWED_USERS=/d' \
@@ -344,42 +324,6 @@ sed -i \
   -e '/^OPENAI_API_KEY=/d' \
   -e '/^OPENAI_BASE_URL=/d' \
   "$HERMES_HOME/.env"
-env OPENAI_CODEX_MODEL="$OPENAI_CODEX_MODEL" "$HERMES_PYTHON" -c '
-import os
-import yaml
-from utils import atomic_yaml_write
-
-path = "/home/hermes/.hermes/config.yaml"
-with open(path, encoding="utf-8") as source:
-    config = yaml.safe_load(source) or {}
-
-model = config.setdefault("model", {})
-if not isinstance(model, dict):
-    model = {}
-    config["model"] = model
-model.update({
-    "provider": "openai-codex",
-    "default": os.environ["OPENAI_CODEX_MODEL"],
-    "base_url": "https://chatgpt.com/backend-api/codex",
-})
-model.pop("api_key", None)
-model.pop("api_key_env", None)
-
-auxiliary = config.setdefault("auxiliary", {})
-if isinstance(auxiliary, dict):
-    for task in auxiliary.values():
-        if not isinstance(task, dict):
-            continue
-        task["provider"] = "main"
-        for key in ("model", "base_url", "api_key", "api_key_env", "fallback_chain"):
-            task.pop(key, None)
-
-config.pop("fallback_providers", None)
-config.pop("fallback_model", None)
-config.pop("bedrock", None)
-config.setdefault("prompt_caching", {})["cache_ttl"] = "off"
-atomic_yaml_write(path, config)
-'
 if [ -f "$HERMES_HOME/auth.json" ]; then
   chmod 0600 "$HERMES_HOME/auth.json"
 fi
