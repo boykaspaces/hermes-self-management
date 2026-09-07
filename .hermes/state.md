@@ -6,15 +6,15 @@ Active Task: None
 
 ## Current summary
 
-The public runtime component is independently deployable and validated. The
-runtime template includes visible Telegram work feedback and approval-free
-local Skill and Memory writes without broadening external authorization
-boundaries.
+The public runtime component is independently deployable and validated. Runtime
+configuration, managed patches, and Token Observer are delivered as one
+immutable, checksummed S3 bundle while CloudFormation owns its identity and a
+small loader; User Data remains pinned and unchanged.
 
 ## Primary focus
 
-No active Task. The completed TASK-003 candidate is delivered to
-`personal-hermes-agent:TASK-013` for deployment acceptance.
+No active Task. The completed TASK-004 candidate is ready for publication and
+deployment acceptance by `personal-hermes-agent:TASK-013`.
 
 ## Active constraints
 

@@ -4,14 +4,14 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 template="$script_dir/cloudformation.yaml"
 runtime_template="$script_dir/../hermes-runtime-secrets/cloudformation.yaml"
+runtime_config="$script_dir/runtime-config.sh"
 user_data_file="$(mktemp)"
 runtime_script_file="$(mktemp)"
 rendered_user_data_file="$(mktemp)"
 rendered_runtime_script_file="$(mktemp)"
 trap 'rm -f "$user_data_file" "$runtime_script_file" "$rendered_user_data_file" "$rendered_runtime_script_file"' EXIT
 
-python3 "$script_dir/sync_token_observer_archive.py" --check
-python3 "$script_dir/sync_hermes_patch_archive.py" --check
+python3 "$script_dir/build_runtime_bundle.py" --check
 
 ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path) }' \
   "$template" "$runtime_template"
@@ -23,9 +23,15 @@ awk '
 ' "$template" | sed '1,2d' >"$user_data_file"
 
 user_data_bytes="$(wc -c <"$user_data_file" | tr -d ' ')"
+user_data_sha256="$(shasum -a 256 "$user_data_file" | awk '{print $1}')"
+expected_user_data_sha256="ebcded4c2ab9d61c9576c6e561539c11f958acb2750c952d560ef041508e35ef"
 template_bytes="$(wc -c <"$template" | tr -d ' ')"
 if [ "$user_data_bytes" -gt 16384 ]; then
   echo "EC2 User Data is $user_data_bytes bytes; the raw limit is 16384" >&2
+  exit 1
+fi
+if [ "$user_data_sha256" != "$expected_user_data_sha256" ]; then
+  echo "EC2 User Data changed; review the first-boot contract and update the pinned digest intentionally" >&2
   exit 1
 fi
 
@@ -42,6 +48,7 @@ perl -pe 's/\$\{![^}]+\}/LITERAL_ENV/g; s/\$\{[^}]+\}/CFN_VALUE/g' \
 
 bash -n "$rendered_user_data_file"
 bash -n "$rendered_runtime_script_file"
+bash -n "$runtime_config"
 
 jq empty \
   "$script_dir/stack-policy.json"
@@ -69,30 +76,32 @@ if rg -n 'bedrock:InvokeModel|bedrock:InvokeModelWithResponseStream|HermesBedroc
   exit 1
 fi
 
-rg -q 'provider": "openai-codex"' "$template"
-rg -q 'config.pop\("fallback_providers", None\)' "$template"
-rg -q 'task\["provider"\] = "main"' "$template"
+rg -q 'provider": "openai-codex"' "$runtime_config"
+rg -q 'config.pop\("fallback_providers", None\)' "$runtime_config"
+rg -q 'task\["provider"\] = "main"' "$runtime_config"
 rg -q 'Default: 29112bef099274229cadff79cdff7bf7b99c4b77' "$template"
-rg -q 'ManagedHermesPatchArchive' "$template"
-rg -q 'apply-hermes-patches.sh" apply' "$template"
-rg -q 'terminal\["docker_network"\] = True' "$template"
-rg -q '"enforce_on_docker": True' "$template"
-rg -q 'hermes-credential-provisioner.service' "$template"
-rg -q '/run/hermes/credentials:ro' "$template"
-rg -q 'config set platforms.telegram.reactions true' "$template"
-rg -q 'config set display.platforms.telegram.streaming true' "$template"
-rg -q 'config set display.platforms.telegram.tool_progress all' "$template"
-rg -q 'config set display.platforms.telegram.cleanup_progress true' "$template"
-rg -q 'config set agent.gateway_notify_interval 60' "$template"
-rg -q 'config set skills.write_approval false' "$template"
-rg -q 'config set memory.write_approval false' "$template"
+rg -q 'RuntimeBundleArtifactSHA256' "$template"
+rg -q 'ReadHermesRuntimeBundle' "$template"
+rg -q 'HERMES_RUNTIME_BUNDLE_DIR' "$template"
+rg -q 'apply-hermes-patches.sh" apply' "$runtime_config"
+rg -q 'terminal\["docker_network"\] = True' "$runtime_config"
+rg -q '"enforce_on_docker": True' "$runtime_config"
+rg -q 'hermes-credential-provisioner.service' "$runtime_config"
+rg -q '/run/hermes/credentials:ro' "$runtime_config"
+rg -q 'config set platforms.telegram.reactions true' "$runtime_config"
+rg -q 'config set display.platforms.telegram.streaming true' "$runtime_config"
+rg -q 'config set display.platforms.telegram.tool_progress all' "$runtime_config"
+rg -q 'config set display.platforms.telegram.cleanup_progress true' "$runtime_config"
+rg -q 'config set agent.gateway_notify_interval 60' "$runtime_config"
+rg -q 'config set skills.write_approval false' "$runtime_config"
+rg -q 'config set memory.write_approval false' "$runtime_config"
 
-if rg -n '/var/run/docker.sock|/run/podman/podman.sock|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$template"; then
+if rg -n '/var/run/docker.sock|/run/podman/podman.sock|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$template" "$runtime_config"; then
   echo "The coding container must not receive a container-engine socket or static AWS credentials" >&2
   exit 1
 fi
 
-if rg -n 'config set model\.provider bedrock|amazon\.nova|pre-nova-cache-fix' "$template"; then
+if rg -n 'config set model\.provider bedrock|amazon\.nova|pre-nova-cache-fix' "$template" "$runtime_config"; then
   echo "Retired Bedrock/Nova bootstrap or P-001 patch logic must not return" >&2
   exit 1
 fi
@@ -117,4 +126,4 @@ if [ "${1:-}" = "--aws" ]; then
     --template-body "file://$runtime_template" >/dev/null
 fi
 
-echo "template-validation-ok template_bytes=$template_bytes user_data_bytes=$user_data_bytes"
+echo "template-validation-ok template_bytes=$template_bytes user_data_bytes=$user_data_bytes user_data_sha256=$user_data_sha256"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Embed a deterministic token-observer archive in cloudformation.yaml."""
+"""Build the deterministic Token Observer archive."""
 
 from __future__ import annotations
 
@@ -9,16 +9,12 @@ import base64
 import gzip
 import io
 import tarfile
-import textwrap
 from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPOSITORY_ROOT = SCRIPT_DIR.parents[1]
 SOURCE_DIR = REPOSITORY_ROOT / "hermes-plugins" / "observability" / "token_observer"
-TEMPLATE = SCRIPT_DIR / "cloudformation.yaml"
-BEGIN = "      # TOKEN_OBSERVER_ARCHIVE_BEGIN\n"
-END = "      # TOKEN_OBSERVER_ARCHIVE_END\n"
 INCLUDED_FILES = (
     "plugin.yaml",
     "__init__.py",
@@ -63,7 +59,7 @@ def deploy_bytes(source: Path) -> bytes:
     return (ast.unparse(tree) + "\n").encode("utf-8")
 
 
-def archive_base64() -> str:
+def archive_bytes() -> bytes:
     buffer = io.BytesIO()
     with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0, filename="") as compressed:
         with tarfile.open(fileobj=compressed, mode="w") as archive:
@@ -77,7 +73,11 @@ def archive_base64() -> str:
                 member.uid = member.gid = 0
                 member.uname = member.gname = ""
                 archive.addfile(member, io.BytesIO(data))
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
+    return buffer.getvalue()
+
+
+def archive_base64() -> str:
+    return base64.b64encode(archive_bytes()).decode("ascii")
 
 
 def verify_archive(encoded: str) -> None:
@@ -96,35 +96,20 @@ def verify_archive(encoded: str) -> None:
                 compile(data, member.name, "exec")
 
 
-def rendered_block() -> str:
-    encoded = archive_base64()
-    verify_archive(encoded)
-    wrapped = textwrap.wrap(encoded, width=100)
-    lines = [BEGIN, "      TokenObserverArchive: |\n"]
-    lines.extend(f"        {line}\n" for line in wrapped)
-    lines.append(END)
-    return "".join(lines)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="fail if the embedded archive is stale")
+    parser.add_argument("--check", action="store_true", help="verify the generated archive")
+    parser.add_argument("--output", type=Path, help="write the archive to this path")
     args = parser.parse_args()
 
-    current = TEMPLATE.read_text(encoding="utf-8")
-    try:
-        prefix, remainder = current.split(BEGIN, 1)
-        _old, suffix = remainder.split(END, 1)
-    except ValueError as error:
-        raise SystemExit("token observer archive markers are missing or duplicated") from error
-    expected = prefix + rendered_block() + suffix
+    payload = archive_bytes()
+    verify_archive(base64.b64encode(payload).decode("ascii"))
+    if args.output:
+        args.output.write_bytes(payload)
     if args.check:
-        if current != expected:
-            raise SystemExit("embedded token observer archive is stale; run sync_token_observer_archive.py")
         print("token-observer-archive-ok")
-        return 0
-    TEMPLATE.write_text(expected, encoding="utf-8")
-    print("token-observer-archive-updated")
+    if not (args.output or args.check):
+        parser.error("specify --output or --check")
     return 0
 
 
