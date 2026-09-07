@@ -73,20 +73,11 @@ Parameters:
     ConstraintDescription: Must be a lowercase SHA-256 digest.
     Description: Required digest of the immutable Hermes runtime bundle.
 
-  OpenAICodexModel:
+  RuntimeProfileParameterName:
     Type: String
-    Default: gpt-5.6-sol
-    AllowedPattern: "^[A-Za-z0-9._:-]+$"
-    ConstraintDescription: Must be a plain OpenAI Codex model identifier without spaces or path separators.
-    Description: OpenAI Codex model selected from the authenticated ChatGPT account catalog. Override this parameter if the account exposes a different model.
-
-  TelegramEnabled:
-    Type: String
-    Default: "false"
-    AllowedValues:
-      - "true"
-      - "false"
-    Description: Enable the production Telegram channel. Keep false for a parallel rebuild until cutover.
+    AllowedPattern: '^/[A-Za-z0-9_.\-/]+$'
+    ConstraintDescription: Must be an absolute SSM Parameter Store name.
+    Description: Existing SSM String parameter containing the validated, non-secret consumer runtime profile.
 
   TelegramRuntimeSecretArn:
     Type: String
@@ -94,13 +85,6 @@ Parameters:
     AllowedPattern: "^$|^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$"
     ConstraintDescription: Must be empty or a complete Secrets Manager secret ARN.
     Description: JSON secret containing TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS, TELEGRAM_HOME_CHANNEL, and optional TELEGRAM_HOME_CHANNEL_THREAD_ID.
-
-  PersonalToolsMCPURL:
-    Type: String
-    Default: ""
-    AllowedPattern: '^$|^https://\S+/mcp$'
-    ConstraintDescription: Must be empty or an HTTPS MCP endpoint ending in /mcp.
-    Description: Optional Personal Tools MCP Streamable HTTP endpoint.
 
   PersonalToolsClientTokenSecretArn:
     Type: String
@@ -123,12 +107,6 @@ Parameters:
     AllowedPattern: '^$|^[a-z0-9]{10}$'
     ConstraintDescription: Must be empty or a 10-character API Gateway HTTP API ID.
     Description: Personal Tools HTTP API ID used to derive the same-account, same-region invoke ARN.
-
-  CredentialProfileId:
-    Type: String
-    Default: github-repository-write
-    AllowedPattern: '^[a-z0-9][a-z0-9-]{2,63}$'
-    Description: Server-defined credential profile requested by the host provisioner.
 
   CredentialAgentArtifactS3Bucket:
     Type: String
@@ -188,12 +166,6 @@ Conditions:
     - !Condition HasStateBackupKey
 
 Rules:
-  TelegramRequiresRuntimeSecret:
-    RuleCondition: !Equals [!Ref TelegramEnabled, "true"]
-    Assertions:
-      - Assert: !Not [!Equals [!Ref TelegramRuntimeSecretArn, ""]]
-        AssertDescription: TelegramRuntimeSecretArn is required when TelegramEnabled is true.
-
   StateRestoreParametersMustBePaired:
     Assertions:
       - Assert: !Or
@@ -266,10 +238,14 @@ Resources:
                   - cloudformation:DescribeStackResource
                   - cloudformation:SignalResource
                 Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
-              - Sid: ReadOnlyTelegramDesiredState
+        - PolicyName: ReadHermesRuntimeProfile
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadOnlyConfiguredRuntimeProfile
                 Effect: Allow
                 Action: ssm:GetParameter
-                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${AWS::StackName}/runtime/telegram-enabled
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${RuntimeProfileParameterName}
         - PolicyName: ReadHermesRuntimeBundle
           PolicyDocument:
             Version: "2012-10-17"
@@ -344,17 +320,6 @@ Resources:
       Roles:
         - !Ref HermesInstanceRole
 
-  TelegramDesiredStateParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub /${AWS::StackName}/runtime/telegram-enabled
-      Type: String
-      Value: !Ref TelegramEnabled
-      Description: Desired Telegram state. Gateway applies it from ExecStartPre without changing EC2 User Data.
-      Tags:
-        Project: !Ref ProjectTag
-        Component: hermes-runtime-config
-
   HermesInstance:
     Type: AWS::EC2::Instance
     Metadata:
@@ -369,13 +334,10 @@ Resources:
           HERMES_BIN=/home/hermes/.local/bin/hermes
           HERMES_PYTHON=/home/hermes/.hermes/hermes-agent/venv/bin/python
           MCP_SECRET_ARN='${PersonalToolsClientTokenSecretArn}'
-          MCP_URL='${PersonalToolsMCPURL}'
           TELEGRAM_SECRET_ARN='${TelegramRuntimeSecretArn}'
-          TELEGRAM_STATE_PARAMETER='${TelegramDesiredStateParameter}'
-          OPENAI_CODEX_MODEL='${OpenAICodexModel}'
+          RUNTIME_PROFILE_PARAMETER='${RuntimeProfileParameterName}'
           GIT_CODING_ENABLED='${GitCodingEnabled}'
           CREDENTIAL_LEASE_URL='https://${CredentialLeaseApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1/credential-leases'
-          CREDENTIAL_PROFILE_ID='${CredentialProfileId}'
           CREDENTIAL_ARTIFACT_BUCKET='${CredentialAgentArtifactS3Bucket}'
           CREDENTIAL_ARTIFACT_KEY='${CredentialAgentArtifactS3Key}'
           CREDENTIAL_ARTIFACT_VERSION='${CredentialAgentArtifactS3ObjectVersion}'
@@ -417,6 +379,8 @@ Resources:
           target = Path(sys.argv[2])
           expected = {
               "runtime-config.sh",
+              "apply_runtime_profile.py",
+              "validate_runtime_profile.py",
               "managed-patches.tar.gz",
               "token-observer.tar.gz",
           }
@@ -441,12 +405,41 @@ Resources:
                   raise SystemExit("runtime bundle is incomplete or contains unexpected files")
               source.extractall(target, members=members, filter="data")
           PY
-            chmod 0755 "$RUNTIME_WORK_DIR/release/runtime-config.sh"
+            chmod 0755 \
+              "$RUNTIME_WORK_DIR/release/runtime-config.sh" \
+              "$RUNTIME_WORK_DIR/release/apply_runtime_profile.py" \
+              "$RUNTIME_WORK_DIR/release/validate_runtime_profile.py"
             if [ ! -e "$RUNTIME_RELEASE_DIR" ]; then
               mv "$RUNTIME_WORK_DIR/release" "$RUNTIME_RELEASE_DIR"
             fi
             trap - EXIT
             rm -rf "$RUNTIME_WORK_DIR"
+          fi
+
+          RUNTIME_PROFILE_ROOT="$HERMES_HOME/runtime/profile"
+          RUNTIME_PROFILE_FILE="$RUNTIME_PROFILE_ROOT/current.json"
+          install -d -m 0700 "$RUNTIME_PROFILE_ROOT"
+          PROFILE_WORK_FILE="$(mktemp "$RUNTIME_PROFILE_ROOT/.runtime-profile.XXXXXX")"
+          if "$AWS_CLI" ssm get-parameter \
+            --name "$RUNTIME_PROFILE_PARAMETER" \
+            --region "$AWS_REGION" \
+            --query Parameter.Value \
+            --output text >"$PROFILE_WORK_FILE"; then
+            if ! "$HERMES_PYTHON" \
+              "$RUNTIME_RELEASE_DIR/validate_runtime_profile.py" \
+              "$PROFILE_WORK_FILE"; then
+              rm -f "$PROFILE_WORK_FILE"
+              exit 1
+            fi
+            chmod 0600 "$PROFILE_WORK_FILE"
+            mv "$PROFILE_WORK_FILE" "$RUNTIME_PROFILE_FILE"
+          else
+            rm -f "$PROFILE_WORK_FILE"
+            test -f "$RUNTIME_PROFILE_FILE"
+            "$HERMES_PYTHON" \
+              "$RUNTIME_RELEASE_DIR/validate_runtime_profile.py" \
+              "$RUNTIME_PROFILE_FILE"
+            echo "Using cached runtime profile after SSM read failure" >&2
           fi
 
           exec env \
@@ -456,19 +449,16 @@ Resources:
             HERMES_BIN="$HERMES_BIN" \
             HERMES_PYTHON="$HERMES_PYTHON" \
             MCP_SECRET_ARN="$MCP_SECRET_ARN" \
-            MCP_URL="$MCP_URL" \
             TELEGRAM_SECRET_ARN="$TELEGRAM_SECRET_ARN" \
-            TELEGRAM_STATE_PARAMETER="$TELEGRAM_STATE_PARAMETER" \
-            OPENAI_CODEX_MODEL="$OPENAI_CODEX_MODEL" \
             GIT_CODING_ENABLED="$GIT_CODING_ENABLED" \
             CREDENTIAL_LEASE_URL="$CREDENTIAL_LEASE_URL" \
-            CREDENTIAL_PROFILE_ID="$CREDENTIAL_PROFILE_ID" \
             CREDENTIAL_ARTIFACT_BUCKET="$CREDENTIAL_ARTIFACT_BUCKET" \
             CREDENTIAL_ARTIFACT_KEY="$CREDENTIAL_ARTIFACT_KEY" \
             CREDENTIAL_ARTIFACT_VERSION="$CREDENTIAL_ARTIFACT_VERSION" \
             CREDENTIAL_ARTIFACT_SHA256="$CREDENTIAL_ARTIFACT_SHA256" \
             CODING_BASE_IMAGE="$CODING_BASE_IMAGE" \
             HERMES_RUNTIME_BUNDLE_DIR="$RUNTIME_RELEASE_DIR" \
+            HERMES_RUNTIME_PROFILE_FILE="$RUNTIME_PROFILE_FILE" \
             "$RUNTIME_RELEASE_DIR/runtime-config.sh"
     CreationPolicy:
       ResourceSignal:
@@ -605,77 +595,6 @@ Resources:
           sudo -u hermes -H env \
             PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
             /home/hermes/.local/bin/hermes tools post-setup ddgs
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set web.search_backend ddgs
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set browser.cloud_provider local
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set browser.backend off
-          sudo -u hermes -H bash -lc \
-            'export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin; hermes config set browser.inactivity_timeout 60; hermes config set browser.command_timeout 30; hermes config set browser.record_sessions false; hermes config set browser.headed false; hermes config set browser.allow_private_urls false; hermes config set browser.auto_local_for_private_urls false; hermes config set browser.allow_unsafe_evaluate false; hermes config set browser.restrict_evaluate true; hermes config set browser.dialog_policy auto_dismiss; hermes config set security.website_blocklist.enabled true'
-          sudo -u hermes -H bash -lc \
-            'cd /home/hermes/.hermes/hermes-agent; venv/bin/python -c "import yaml; p=\"/home/hermes/.hermes/config.yaml\"; c=yaml.safe_load(open(p)) or {}; w=c.setdefault(\"security\", {}).setdefault(\"website_blocklist\", {}); w[\"enabled\"]=True; w[\"domains\"]=[\"localhost\",\"127.*\",\"0.0.0.0\",\"10.*\",\"100.64.*\",\"169.254.*\",\"172.16.*\",\"172.17.*\",\"172.18.*\",\"172.19.*\",\"172.20.*\",\"172.21.*\",\"172.22.*\",\"172.23.*\",\"172.24.*\",\"172.25.*\",\"172.26.*\",\"172.27.*\",\"172.28.*\",\"172.29.*\",\"172.30.*\",\"172.31.*\",\"192.168.*\",\"instance-data.ec2.internal\",\"metadata.google.internal\",\"*.compute.internal\",\"*.ec2.internal\",\"*.local\",\"*.lan\",\"*.internal\"]; open(p,\"w\").write(yaml.safe_dump(c, sort_keys=False))"'
-          sudo -u hermes -H bash -lc \
-            'export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin; hermes tools enable browser --platform cli; hermes tools enable browser --platform telegram; hermes config check'
-
-          sudo -u hermes -H env \
-            HERMES_DOCKER_BINARY=/usr/bin/podman \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set terminal.backend docker
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set terminal.docker_network false
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set terminal.container_memory 1024
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set terminal.container_disk 0
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set terminal.docker_shm_size 256m
-          sudo -u hermes -H bash -lc '
-            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
-            hermes config set terminal.container_cpu 1
-            hermes config set terminal.container_persistent true
-            hermes config set terminal.docker_mount_cwd_to_workspace false
-            hermes config set terminal.home_mode auto
-            hermes config set terminal.lifetime_seconds 300
-            hermes config set terminal.timeout 180
-            hermes config set agent.max_turns 90
-            hermes config set agent.reasoning_effort medium
-            hermes config set agent.verbose false
-          '
-
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set memory.memory_enabled true
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes config set memory.user_profile_enabled true
-          sudo -u hermes -H bash -lc '
-            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
-            hermes config set memory.flush_min_turns 6
-            hermes config set memory.memory_char_limit 2200
-            hermes config set memory.nudge_interval 10
-            hermes config set memory.user_char_limit 1375
-            hermes config set terminal.cwd .
-          '
-          sudo -u hermes -H env \
-            PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            /home/hermes/.local/bin/hermes tools enable memory
-          sudo -u hermes -H bash -lc '
-            export PATH=/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin
-            for platform in cli telegram; do
-              hermes tools enable file --platform "$platform"
-              hermes tools enable terminal --platform "$platform"
-              hermes tools enable browser --platform "$platform"
-              hermes tools enable memory --platform "$platform"
-            done
-          '
 
           if [ -n '${HermesStateBackupBucket}' ]; then
             install -d -m 0700 -o hermes -g hermes /home/hermes/.restore
@@ -866,6 +785,6 @@ Outputs:
     Description: Exact Hermes source revision used for this rebuild.
     Value: !Ref HermesGitRef
 
-  TelegramStatus:
-    Description: Whether this host was intentionally configured to start the production Telegram channel.
-    Value: !Ref TelegramEnabled
+  RuntimeProfileParameter:
+    Description: Consumer-owned SSM parameter read before each Gateway start.
+    Value: !Ref RuntimeProfileParameterName

@@ -9,8 +9,11 @@ coding, retained context mounts, managed upstream patches, and Token Observer.
 
 | Path | Owns |
 |---|---|
-| `cloudformation.yaml` | Host, IAM role, network rules, first-boot User Data, immutable runtime-bundle identity, and outputs |
-| `runtime-config.sh` | Idempotent Hermes runtime configuration applied before Gateway start |
+| `cloudformation.yaml` | Host, IAM role, network rules, first-boot User Data, immutable runtime-bundle identity, consumer-profile parameter name, and outputs |
+| `runtime-config.sh` | Idempotent generic runtime orchestration applied before Gateway start |
+| `runtime-profile.example.json` | Neutral non-secret consumer profile example |
+| `validate_runtime_profile.py` | Strict profile schema, size, URL, hostname, and credential-material validation |
+| `apply_runtime_profile.py` | Atomic translation from a validated profile into Hermes `config.yaml` |
 | `build_runtime_bundle.py` | Deterministic bundle of runtime configuration, managed patches, and Token Observer |
 | `publish-runtime-artifacts.sh` | Content-addressed runtime-bundle upload and deployment parameter output |
 | `validate-template.sh` | Runtime-bundle, YAML, User Data, shell, IAM, and security-invariant checks |
@@ -31,16 +34,20 @@ Choose and record privately:
 - VPC and subnet with the intended outbound path;
 - reviewed AMI ID for the target Region;
 - exact Hermes Git commit compatible with the managed patch set;
+- an existing SSM String parameter containing a validated, non-secret runtime
+  profile and its absolute parameter name;
 - optional retained Telegram Secret ARN;
 - optional Personal Tools MCP URL and client-token Secret ARN;
 - optional Credential Lease API ID and immutable credential-agent artifact;
 - immutable runtime-bundle bucket, content-addressed key, optional object version,
   and SHA-256 emitted by `publish-runtime-artifacts.sh`;
 - optional state-backup bucket/key;
-- expected model identifier exposed by the authenticated subscription account.
+- expected model identifier exposed by the authenticated subscription account,
+  stored in the consumer profile rather than in CloudFormation.
 
 The template contains no production default AMI, Secret ARN, API endpoint,
-account ID, instance ID, or bucket.
+account ID, instance ID, bucket, model choice, Telegram enablement, MCP URL,
+Memory tuning, Skill approval preference, or proxy allowlist.
 
 ## Validate
 
@@ -72,17 +79,21 @@ HERMES_TEMPLATE_BUCKET="$ARTIFACT_BUCKET" \
 
 Both publish scripts upload to content-addressed keys. The instance verifies the
 runtime bundle SHA-256 before safely extracting it into a digest-named release
-directory. CloudFormation Metadata contains only the artifact identity and a
-small loader; the complete runtime configuration and payloads are not embedded
-in the template or User Data. Upload and deployment are operator-controlled
-writes.
+directory. The loader then reads the consumer-owned profile from its fixed SSM
+parameter, validates it, caches the last valid copy, and applies it atomically.
+CloudFormation Metadata contains only infrastructure bindings, the artifact
+identity, the profile parameter name, and a small loader; personal preferences
+and complete runtime payloads are not embedded in the template or User Data.
+Upload and deployment are operator-controlled writes.
 
 ## Deployment sequence
 
 1. Render and review `policies/deployer-policy.json.tmpl` outside the repository.
-2. Validate templates and create an EBS snapshot/rollback point for updates.
+2. Validate templates and the consumer profile, publish the profile to its
+   fixed SSM parameter, and create an EBS snapshot/rollback point for updates.
 3. Publish the runtime bundle, then publish the content-addressed template and
-   create a Change Set with the emitted runtime-bundle parameters.
+   create a Change Set with the emitted runtime-bundle parameters and fixed
+   profile parameter name.
 4. Reject unexpected EC2 replacement; apply `stack-policy.json` before a
    production update.
 5. Execute the Change Set and confirm the physical instance/volume behavior.
@@ -92,9 +103,13 @@ writes.
    credential-lease smoke and negative tests.
 8. Replace temporary deployer access with the rendered operator policy.
 
-Changing runtime behavior normally advances the bundle key/SHA without changing
-User Data. A cached digest remains usable if S3 is temporarily unavailable;
-rollback advances the stack back to a previously reviewed bundle identity.
+Changing a consumer preference normally updates only the versioned SSM profile
+and then restarts Gateway; it does not change CloudFormation, User Data, or the
+generic runtime bundle. Changing generic runtime behavior advances the bundle
+key/SHA. A cached bundle and last valid profile remain usable during a transient
+read failure. Rollback restores the previous SSM Parameter version for profile
+changes or advances the stack to a previous reviewed bundle identity for code
+changes.
 
 See `HERMES_UPGRADE_RUNBOOK.md` before changing `HermesGitRef` or a managed
 patch set.
@@ -127,13 +142,16 @@ may use the container's ordinary network path. Treat network-layer enforcement
 as a separate deployment hardening requirement when the threat model includes
 actively hostile code inside the coding container.
 
-## Telegram work feedback
+## Consumer runtime profile
 
-The runtime sync enables Telegram processing reactions, grouped tool progress,
-per-platform streaming, and one-minute long-running notifications. Temporary
-progress bubbles are deleted after a successful final response and retained on
-failure as diagnostic breadcrumbs.
+Copy `runtime-profile.example.json` into the consuming private operations
+repository and replace only non-secret values. The profile owns the model name,
+Telegram desired state and progress behavior, Personal Tools URL, credential
+profile ID, browser timeouts, Terminal resource limits, agent settings, Memory
+tuning, Skill/Memory write approval, and the reviewed coding proxy allowlist.
+The SSM Standard parameter limit is enforced at 4 KiB.
 
-Skill and Memory writes do not require Hermes' per-operation approval prompt.
-This only changes local knowledge-write interaction; it does not broaden IAM,
-Secret, network, container, external-send, or protected Git-ref boundaries.
+The profile contains no tokens, passwords, private keys, OAuth values, or Secret
+values. Secret ARNs, Git-coding capability, artifact access, and network/IAM
+authority remain CloudFormation-reviewed boundaries. The public component does
+not own or publish a consuming deployment's real profile.

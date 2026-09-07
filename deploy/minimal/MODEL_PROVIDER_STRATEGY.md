@@ -26,7 +26,7 @@ refresh, limit, and no-fallback tests.
 
 ```text
 Hermes主调用
-  -> openai-codex / OpenAICodexModel
+  -> openai-codex / consumer Runtime Profile model.default
   -> ChatGPT订阅 OAuth
 
 Hermes辅助调用
@@ -40,9 +40,10 @@ Hermes辅助调用
   -> 当前任务明确失败并停止，不产生其他模型账单
 ```
 
-CloudFormation参数`OpenAICodexModel`保存期望模型，默认值为`gpt-5.6-sol`。模型是否可用
-最终由当前 ChatGPT账户的实时 Codex模型目录决定；如果账户未提供默认模型，必须先在
-`hermes model`中查看可用模型，再用该模型值更新 CloudFormation参数。
+私有 consumer Runtime Profile的`model.default`保存期望模型。模型是否可用最终由当前
+ChatGPT账户的实时 Codex模型目录决定；如果账户未提供配置模型，必须先在`hermes model`
+中查看可用模型，再更新、验证并发布新的 Runtime Profile版本。模型偏好变化不更新
+CloudFormation。
 
 ## OAuth凭证边界
 
@@ -73,25 +74,25 @@ sudo -iu hermes bash -lc \
   'PATH="$HOME/.local/bin:$PATH" hermes model'
 ```
 
-`hermes model`会立即改写本机配置。生产期望值仍以 CloudFormation的
-`OpenAICodexModel`参数为准，Gateway每次启动前都会重新应用该值。
+`hermes model`会立即改写本机配置。生产期望值仍以私有 Runtime Profile的
+`model.default`为准，Gateway每次启动前都会重新应用该值。
 
 ## 生产切换顺序
 
 切换必须按以下顺序执行，避免在凭证尚未建立时先停用当前模型：
 
 1. 在当前实例上执行`hermes auth add openai-codex`，完成个人设备码授权。
-2. 通过`hermes model`确认账户提供`OpenAICodexModel`所指定的模型。
+2. 通过`hermes model`确认账户提供 Runtime Profile所指定的模型。
 3. 停止 Gateway，避免变更窗口内接收新任务。
-4. 发布 CloudFormation模板，检查 Change Set不得替换`HermesInstance`。
-5. 执行 Change Set；确认 EC2 Role的 Bedrock调用策略被删除。
-6. 启动 Gateway。`ExecStartPre`会设置主模型、辅助模型并清除全部 fallback。
-7. 执行一个最小模型调用，并在 Token Observer确认：
+4. 如果只是切换订阅模型，发布新的 Runtime Profile版本；如果变更 Provider或 IAM能力，
+   使用独立 CloudFormation Change Set并检查不得替换`HermesInstance`。
+5. 启动 Gateway。`ExecStartPre`会设置主模型、辅助模型并清除全部 fallback。
+6. 执行一个最小模型调用，并在 Token Observer确认：
    - `provider = openai-codex`；
    - `api_mode = codex_responses`；
    - 没有`bedrock`调用；
    - 没有 fallback attempt。
-8. 重启 Gateway再次执行最小调用，确认 OAuth刷新状态和声明式配置能够跨重启工作。
+7. 重启 Gateway再次执行最小调用，确认 OAuth刷新状态和声明式配置能够跨重启工作。
 
 不主动耗尽订阅额度作为首次验收，因为这会同时影响所有共享该 ChatGPT账户额度的 Codex
 客户端。限额停止行为先通过无 fallback配置、IAM拒绝边界和 Hermes错误路径检查确认；只有
