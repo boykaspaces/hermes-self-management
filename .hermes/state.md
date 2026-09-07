@@ -8,7 +8,8 @@ Active Task: None
 
 The public runtime component is independently deployable and validated. Its
 OAuth-only coding path now supports an explicit allowlist-only egress setup,
-without adding consuming deployment state.
+including Rootless Podman host-proxy routing that preserves the explicit
+network-disabled mode, without adding consuming deployment state.
 
 ## Primary focus
 

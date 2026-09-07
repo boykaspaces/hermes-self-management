@@ -18,7 +18,12 @@
 - Subscription OAuth does not require a dummy model Provider API Key: the
   managed allowlist-only setup writes no provider secret mappings and admits
   only the explicit coding-host catalogue.
-- Private, loopback, link-local, and cloud metadata targets remain denied.
+- Private, loopback, link-local, cloud metadata, and uncatalogued public
+  targets are denied on the configured explicit-proxy path.
+- This component does not transparently force every socket through the proxy.
+  Code that deliberately clears proxy and CA variables can still use the
+  ordinary container network; require network-layer enforcement for a threat
+  model that includes hostile sandbox processes.
 - Adding a domain or disabling isolation is an operator-reviewed security
   change, not agent self-maintenance.
 

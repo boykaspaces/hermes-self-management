@@ -21,6 +21,9 @@ installation path.
   secrets transform.
 - Added a version-pinned `--allowlist-only` CLI patch that refuses an empty
   explicit host catalogue and rejects incompatible secret-mapping options.
+- Added Rootless Podman proxy routing through its `10.0.2.2` host-loopback
+  gateway while preserving `network=false` as `--network=none`; Docker keeps
+  the existing `host.docker.internal` route.
 - Corrected Credential Provisioner installation to use the directory that owns
   `HERMES_BIN` instead of nesting it under `HERMES_HOME`.
 - Added archive membership, applied-file digest, template invariant, and
@@ -51,5 +54,6 @@ and record consuming-system acceptance evidence.
 
 OAuth-only hosts can configure explicit, default-deny coding egress without a
 dummy model Provider API Key. The managed patch set applies cleanly to the
-pinned Hermes commit, its targeted regressions pass, and the host template
+pinned Hermes commit, its targeted regressions pass, Rootless Podman can reach
+the host proxy without overriding disabled networking, and the host template
 installs the Credential Provisioner at the executable path used by systemd.
