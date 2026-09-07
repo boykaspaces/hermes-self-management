@@ -14,9 +14,10 @@ Token Observer remain in the immutable, checksummed S3 bundle.
 
 ## Primary focus
 
-No active Task. Runtime Profile TASK-005 is ready for
-`personal-hermes-agent:TASK-014`; Context Kit adoption TASK-006 is ready for
-`personal-hermes-agent:TASK-015`.
+No active Task. Context Kit adoption TASK-006 is accepted through
+`personal-hermes-agent:TASK-015`. Runtime Profile cache correction TASK-007 is
+production-validated and ready for review through
+`personal-hermes-agent:TASK-016`.
 
 ## Active constraints
 
