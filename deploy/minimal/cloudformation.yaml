@@ -553,9 +553,9 @@ Resources:
           config.setdefault("checkpoints", {})["enabled"] = True
           config.setdefault("skills", {}).update({
               "guard_agent_created": True,
-              "write_approval": True,
+              "write_approval": False,
           })
-          config.setdefault("memory", {})["write_approval"] = True
+          config.setdefault("memory", {})["write_approval"] = False
           approvals = config.setdefault("approvals", {})
           approvals["mode"] = "smart"
           approvals["denial_breaker_threshold"] = 3
@@ -626,6 +626,15 @@ Resources:
             *) echo "Invalid Telegram desired state" >&2; exit 1 ;;
           esac
           "$HERMES_BIN" config set platforms.telegram.enabled "$TELEGRAM_ENABLED"
+          "$HERMES_BIN" config set platforms.telegram.reactions true
+          "$HERMES_BIN" config set display.platforms.telegram.streaming true
+          "$HERMES_BIN" config set display.platforms.telegram.tool_progress all
+          "$HERMES_BIN" config set display.platforms.telegram.tool_progress_grouping accumulate
+          "$HERMES_BIN" config set display.platforms.telegram.long_running_notifications true
+          "$HERMES_BIN" config set display.platforms.telegram.cleanup_progress true
+          "$HERMES_BIN" config set agent.gateway_notify_interval 60
+          "$HERMES_BIN" config set skills.write_approval false
+          "$HERMES_BIN" config set memory.write_approval false
           sed -i \
             -e '/^TELEGRAM_BOT_TOKEN=/d' \
             -e '/^TELEGRAM_ALLOWED_USERS=/d' \

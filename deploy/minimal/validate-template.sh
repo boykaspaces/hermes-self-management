@@ -79,6 +79,13 @@ rg -q 'terminal\["docker_network"\] = True' "$template"
 rg -q '"enforce_on_docker": True' "$template"
 rg -q 'hermes-credential-provisioner.service' "$template"
 rg -q '/run/hermes/credentials:ro' "$template"
+rg -q 'config set platforms.telegram.reactions true' "$template"
+rg -q 'config set display.platforms.telegram.streaming true' "$template"
+rg -q 'config set display.platforms.telegram.tool_progress all' "$template"
+rg -q 'config set display.platforms.telegram.cleanup_progress true' "$template"
+rg -q 'config set agent.gateway_notify_interval 60' "$template"
+rg -q 'config set skills.write_approval false' "$template"
+rg -q 'config set memory.write_approval false' "$template"
 
 if rg -n '/var/run/docker.sock|/run/podman/podman.sock|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$template"; then
   echo "The coding container must not receive a container-engine socket or static AWS credentials" >&2

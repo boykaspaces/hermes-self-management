@@ -6,14 +6,15 @@ Active Task: None
 
 ## Current summary
 
-The public runtime component is independently deployable and validated. Its
-repository-maintenance context follows the shared cross-repository Task
-protocol without containing production state.
+The public runtime component is independently deployable and validated. The
+runtime template includes visible Telegram work feedback and approval-free
+local Skill and Memory writes without broadening external authorization
+boundaries.
 
 ## Primary focus
 
-No active Task. Create a local Component Task when repository work needs
-persistent tracking.
+No active Task. The completed TASK-003 candidate is delivered to
+`personal-hermes-agent:TASK-013` for deployment acceptance.
 
 ## Active constraints
 

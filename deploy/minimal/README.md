@@ -78,3 +78,14 @@ The host provisioner is optional and receives IAM authority only when
 mount, no instance role, no container-engine socket, and egress through the
 configured proxy. Repository protected-ref rules must be proven before enabling
 credential issuance.
+
+## Telegram work feedback
+
+The runtime sync enables Telegram processing reactions, grouped tool progress,
+per-platform streaming, and one-minute long-running notifications. Temporary
+progress bubbles are deleted after a successful final response and retained on
+failure as diagnostic breadcrumbs.
+
+Skill and Memory writes do not require Hermes' per-operation approval prompt.
+This only changes local knowledge-write interaction; it does not broaden IAM,
+Secret, network, container, external-send, or protected Git-ref boundaries.
