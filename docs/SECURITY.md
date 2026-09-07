@@ -42,5 +42,11 @@ Operator/managed scope must lock access control, secret redaction, minimum
 approval posture, container backend, filesystem roots, network boundaries,
 metadata denial, and privileged host capabilities.
 
+Mutable non-secret user preferences are loaded from a consumer-owned SSM
+runtime profile rather than embedded in CloudFormation or first-boot User Data.
+The public validator constrains the profile schema and preserves fixed security
+baselines. Changing the profile does not grant IAM, Secret, artifact, or API
+access; those capabilities still require a reviewed infrastructure update.
+
 The repository contains mechanisms and defaults, not a substitute for the
 operator's threat model or cloud-account review.

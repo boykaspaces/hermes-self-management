@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "model": {
+    "default": "gpt-5.6-sol"
+  },
+  "telegram": {
+    "enabled": false,
+    "reactions": true,
+    "streaming": true,
+    "tool_progress": "all",
+    "tool_progress_grouping": "accumulate",
+    "long_running_notifications": true,
+    "cleanup_progress": true,
+    "gateway_notify_interval": 60
+  },
+  "mcp": {
+    "personal_tools_url": ""
+  },
+  "credential": {
+    "profile_id": "github-repository-write"
+  },
+  "browser": {
+    "inactivity_timeout": 60,
+    "command_timeout": 30
+  },
+  "terminal": {
+    "container_memory": 1024,
+    "container_disk": 0,
+    "docker_shm_size": "256m",
+    "container_cpu": 1,
+    "container_persistent": true,
+    "docker_mount_cwd_to_workspace": false,
+    "home_mode": "auto",
+    "lifetime_seconds": 300,
+    "timeout": 180,
+    "cwd": "."
+  },
+  "agent": {
+    "max_turns": 90,
+    "reasoning_effort": "medium",
+    "verbose": false
+  },
+  "memory": {
+    "enabled": true,
+    "user_profile_enabled": true,
+    "flush_min_turns": 6,
+    "memory_char_limit": 2200,
+    "nudge_interval": 10,
+    "user_char_limit": 1375,
+    "write_approval": false
+  },
+  "skills": {
+    "guard_agent_created": true,
+    "write_approval": false
+  },
+  "proxy": {
+    "extra_allowed_hosts": [
+      "github.com",
+      "api.github.com",
+      "objects.githubusercontent.com",
+      "raw.githubusercontent.com",
+      "codeload.github.com",
+      "github-releases.githubusercontent.com",
+      "proxy.golang.org",
+      "sum.golang.org",
+      "storage.googleapis.com",
+      "registry.npmjs.org"
+    ]
+  }
+}

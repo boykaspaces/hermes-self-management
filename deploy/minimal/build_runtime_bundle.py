@@ -17,6 +17,8 @@ import sync_token_observer_archive
 SCRIPT_DIR = Path(__file__).resolve().parent
 MEMBERS = (
     ("runtime-config.sh", 0o755),
+    ("apply_runtime_profile.py", 0o755),
+    ("validate_runtime_profile.py", 0o755),
     ("managed-patches.tar.gz", 0o644),
     ("token-observer.tar.gz", 0o644),
 )
@@ -25,6 +27,10 @@ MEMBERS = (
 def member_payloads() -> dict[str, bytes]:
     return {
         "runtime-config.sh": (SCRIPT_DIR / "runtime-config.sh").read_bytes(),
+        "apply_runtime_profile.py": (SCRIPT_DIR / "apply_runtime_profile.py").read_bytes(),
+        "validate_runtime_profile.py": (
+            SCRIPT_DIR / "validate_runtime_profile.py"
+        ).read_bytes(),
         "managed-patches.tar.gz": sync_hermes_patch_archive.archive_bytes(),
         "token-observer.tar.gz": sync_token_observer_archive.archive_bytes(),
     }

@@ -17,6 +17,7 @@ None.
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
 | [TASK-006](./TASK-006.md) | Completed | Adopt the versioned Context Kit protocol | Auditing Context Kit 0.2.0 adoption or repository-profile conformance |
+| [`TASK-005`](./TASK-005.md) | Completed | Externalize consumer runtime profile | Reviewing the CloudFormation/User Data boundary or consumer-profile contract |
 | [`TASK-004`](./TASK-004.md) | Completed | Extract immutable runtime artifacts | Auditing runtime artifact separation, integrity, or rollback |
 | [`TASK-003`](./TASK-003.md) | Completed | Improve Telegram work feedback | Auditing Telegram progress or local Skill/Memory approval defaults |
 | [`TASK-002`](./TASK-002.md) | Completed | Support OAuth-only restricted egress | Auditing allowlist-only egress or Rootless Podman proxy routing |
