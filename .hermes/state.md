@@ -9,7 +9,9 @@ Active Task: None
 The public runtime component is independently deployable and validated. Runtime
 configuration, managed patches, and Token Observer are delivered as one
 immutable, checksummed S3 bundle while CloudFormation owns its identity and a
-small loader; User Data remains pinned and unchanged.
+small loader; User Data remains pinned and unchanged. The bundle retains the
+completed OAuth-only allowlist egress and Rootless Podman routing work from
+TASK-002.
 
 ## Primary focus
 

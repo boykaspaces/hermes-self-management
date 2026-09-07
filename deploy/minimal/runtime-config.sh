@@ -45,6 +45,7 @@ required = {
     "patches/hermes-v0.21.0-29112bef/commit.txt",
     "patches/hermes-v0.21.0-29112bef/P-002-browser-private-url.patch",
     "patches/hermes-v0.21.0-29112bef/P-003-podman-reuse.patch",
+    "patches/hermes-v0.21.0-29112bef/P-005-egress-allowlist-only.patch",
     "patches/hermes-v0.21.0-29112bef/PATCHED_SHA256SUMS",
 }
 try:
@@ -110,8 +111,10 @@ if [ "$GIT_CODING_ENABLED" = true ]; then
   rm -f "$CREDENTIAL_ARCHIVE"
   test -f "$CREDENTIAL_RUNTIME/staging/hermes-credential-provisioner"
   test -f "$CREDENTIAL_RUNTIME/staging/git-credential-hermes"
+  HERMES_BIN_DIR="$(dirname "$HERMES_BIN")"
+  install -d -m 0755 "$HERMES_BIN_DIR"
   install -m 0755 "$CREDENTIAL_RUNTIME/staging/hermes-credential-provisioner" \
-    "$HERMES_HOME/.local/bin/hermes-credential-provisioner"
+    "$HERMES_BIN_DIR/hermes-credential-provisioner"
 
   CREDENTIAL_IMAGE=localhost/hermes-coding:managed
   CURRENT_IMAGE_DIGEST="$(HERMES_DOCKER_BINARY=/usr/bin/podman podman image inspect \
@@ -150,7 +153,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=HOME=$HOME
-ExecStart=$HERMES_HOME/.local/bin/hermes-credential-provisioner --endpoint $CREDENTIAL_LEASE_URL --region $AWS_REGION --profile $CREDENTIAL_PROFILE_ID --output %t/hermes-credentials/$CREDENTIAL_PROFILE_ID.json --refresh-before 10m
+ExecStart=$HERMES_BIN_DIR/hermes-credential-provisioner --endpoint $CREDENTIAL_LEASE_URL --region $AWS_REGION --profile $CREDENTIAL_PROFILE_ID --output %t/hermes-credentials/$CREDENTIAL_PROFILE_ID.json --refresh-before 10m
 Restart=always
 RestartSec=10
 RuntimeDirectory=hermes-credentials
@@ -241,9 +244,9 @@ current_policy = str(approvals.get("smart_policy", "")).strip()
 if git_policy not in current_policy:
     approvals["smart_policy"] = "\n\n".join(filter(None, (current_policy, git_policy)))
 atomic_yaml_write(path, config)
-'
+  '
   "$HERMES_BIN" egress install
-  "$HERMES_BIN" egress setup --no-bitwarden --no-restart
+  "$HERMES_BIN" egress setup --allowlist-only --no-bitwarden --no-restart
   "$HERMES_BIN" egress restart
 fi
 

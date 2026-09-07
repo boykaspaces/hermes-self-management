@@ -88,6 +88,10 @@ rg -q 'terminal\["docker_network"\] = True' "$runtime_config"
 rg -q '"enforce_on_docker": True' "$runtime_config"
 rg -q 'hermes-credential-provisioner.service' "$runtime_config"
 rg -q '/run/hermes/credentials:ro' "$runtime_config"
+rg -q 'P-005-egress-allowlist-only.patch' "$runtime_config"
+rg -q 'egress setup --allowlist-only --no-bitwarden --no-restart' "$runtime_config"
+rg -Fq 'HERMES_BIN_DIR="$(dirname "$HERMES_BIN")"' "$runtime_config"
+rg -Fq 'ExecStart=$HERMES_BIN_DIR/hermes-credential-provisioner' "$runtime_config"
 rg -q 'config set platforms.telegram.reactions true' "$runtime_config"
 rg -q 'config set display.platforms.telegram.streaming true' "$runtime_config"
 rg -q 'config set display.platforms.telegram.tool_progress all' "$runtime_config"
@@ -95,6 +99,11 @@ rg -q 'config set display.platforms.telegram.cleanup_progress true' "$runtime_co
 rg -q 'config set agent.gateway_notify_interval 60' "$runtime_config"
 rg -q 'config set skills.write_approval false' "$runtime_config"
 rg -q 'config set memory.write_approval false' "$runtime_config"
+
+if rg -n '\$HERMES_HOME/\.local/bin/hermes-credential-provisioner' "$runtime_config"; then
+  echo "Credential provisioner must be installed beside HERMES_BIN" >&2
+  exit 1
+fi
 
 if rg -n '/var/run/docker.sock|/run/podman/podman.sock|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$template" "$runtime_config"; then
   echo "The coding container must not receive a container-engine socket or static AWS credentials" >&2
