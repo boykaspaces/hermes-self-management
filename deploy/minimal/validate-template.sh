@@ -79,6 +79,15 @@ rg -q 'terminal\["docker_network"\] = True' "$template"
 rg -q '"enforce_on_docker": True' "$template"
 rg -q 'hermes-credential-provisioner.service' "$template"
 rg -q '/run/hermes/credentials:ro' "$template"
+rg -q 'P-005-egress-allowlist-only.patch' "$template"
+rg -q 'egress setup --allowlist-only --no-bitwarden --no-restart' "$template"
+rg -Fq 'HERMES_BIN_DIR="$(dirname "$HERMES_BIN")"' "$template"
+rg -Fq 'ExecStart=$HERMES_BIN_DIR/hermes-credential-provisioner' "$template"
+
+if rg -n '\$HERMES_HOME/\.local/bin/hermes-credential-provisioner' "$template"; then
+  echo "Credential provisioner must be installed beside HERMES_BIN" >&2
+  exit 1
+fi
 
 if rg -n '/var/run/docker.sock|/run/podman/podman.sock|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY' "$template"; then
   echo "The coding container must not receive a container-engine socket or static AWS credentials" >&2

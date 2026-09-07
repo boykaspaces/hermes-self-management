@@ -78,3 +78,23 @@ The host provisioner is optional and receives IAM authority only when
 mount, no instance role, no container-engine socket, and egress through the
 configured proxy. Repository protected-ref rules must be proven before enabling
 credential issuance.
+
+On subscription-OAuth hosts the runtime uses
+`hermes egress setup --allowlist-only`: no model Provider API Key is required,
+and the generated proxy policy contains only the explicit
+`proxy.extra_allowed_hosts` catalogue. Setup fails closed when that catalogue is
+empty. The host Credential Provisioner is installed beside `HERMES_BIN`
+(`/home/hermes/.local/bin` in this template), while its short-lived lease output
+remains under the user runtime directory mounted read-only into the coding
+container. Docker reaches the loopback-bound proxy through
+`host.docker.internal`; Rootless Podman uses its `10.0.2.2` host-loopback
+gateway with `slirp4netns:allow_host_loopback=true`. That Podman override is
+omitted when Terminal networking is disabled, so `--network=none` remains the
+effective setting.
+
+This is explicit-proxy enforcement, not transparent kernel-level egress
+redirection. Proxy-aware Git, curl, and package tooling follow the allowlist,
+but a process that deliberately removes the injected proxy and CA variables
+may use the container's ordinary network path. Treat network-layer enforcement
+as a separate deployment hardening requirement when the threat model includes
+actively hostile code inside the coding container.
