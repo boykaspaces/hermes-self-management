@@ -1,9 +1,9 @@
-# TASK-005: Adopt the Versioned Context Kit Protocol
+# TASK-006: Adopt the Versioned Context Kit Protocol
 
 Status: Completed
 Type: Component
 Priority: High
-Parent System Task: personal-hermes-agent:TASK-014
+Parent System Task: personal-hermes-agent:TASK-015
 
 ## Goal
 
