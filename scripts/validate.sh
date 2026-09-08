@@ -5,7 +5,11 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 for path in PROJECT.md AGENTS.md .hermes/context-kit.json .hermes/context-index.md .hermes/state.md \
   .hermes/checkpoints/README.md tasks/README.md tasks/current.md \
-  docs/decisions/README.md; do
+  docs/decisions/README.md deploy/QUICKSTART.md deploy/bootstrap/README.md \
+  deploy/bootstrap/artifacts-cloudformation.yaml deploy/bootstrap/network-cloudformation.yaml \
+  deploy/bootstrap/discover-environment.sh deploy/bootstrap/validate-template.sh \
+  deploy/minimal/parameters.example.json deploy/minimal/publish-runtime-profile.sh \
+  deploy/minimal/create-change-set.sh; do
   test -f "$repo_root/$path" || { echo "missing context path: $path" >&2; exit 1; }
 done
 
@@ -39,15 +43,21 @@ fi
 
 bash -n "$repo_root/deploy/minimal/validate-template.sh"
 bash -n "$repo_root/deploy/minimal/publish-template.sh"
+bash -n "$repo_root/deploy/minimal/publish-runtime-profile.sh"
+bash -n "$repo_root/deploy/minimal/create-change-set.sh"
 bash -n "$repo_root/deploy/minimal/apply-hermes-patches.sh"
+bash -n "$repo_root/deploy/bootstrap/discover-environment.sh"
+bash -n "$repo_root/deploy/bootstrap/validate-template.sh"
 bash -n "$repo_root/deploy/budget/validate-template.sh"
 bash -n "$repo_root/deploy/hermes-runtime-secrets/validate-template.sh"
 
 "$repo_root/deploy/minimal/validate-template.sh"
+"$repo_root/deploy/bootstrap/validate-template.sh"
 "$repo_root/deploy/budget/validate-template.sh"
 "$repo_root/deploy/hermes-runtime-secrets/validate-template.sh"
 
 python3 -m unittest discover -s "$repo_root/hermes-plugins/observability/token_observer/tests" -p 'test_*.py'
+python3 -m unittest discover -s "$repo_root/deploy/bootstrap/tests" -p 'test_*.py'
 
 ruby - "$repo_root" <<'RUBY'
 require "pathname"

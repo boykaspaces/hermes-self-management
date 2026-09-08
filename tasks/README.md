@@ -16,6 +16,7 @@ None.
 
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
+| [`TASK-008`](./TASK-008.md) | Completed | Add a public AWS bootstrap path | Auditing the consumer-neutral clone-to-Change-Set deployment experience |
 | [TASK-007](./TASK-007.md) | Completed | Preserve Runtime Profile bytes | Auditing the production-discovered SSM cache byte mismatch |
 | [TASK-006](./TASK-006.md) | Completed | Adopt the versioned Context Kit protocol | Auditing Context Kit 0.2.0 adoption or repository-profile conformance |
 | [`TASK-005`](./TASK-005.md) | Completed | Externalize consumer runtime profile | Reviewing the CloudFormation/User Data boundary or consumer-profile contract |

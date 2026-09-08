@@ -1,0 +1,50 @@
+[
+  {
+    "ParameterKey": "ProjectTag",
+    "ParameterValue": "my-hermes-agent"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "REPLACE_WITH_VPC_ID"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "REPLACE_WITH_SUBNET_ID"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.small"
+  },
+  {
+    "ParameterKey": "RootVolumeSize",
+    "ParameterValue": "20"
+  },
+  {
+    "ParameterKey": "AmiId",
+    "ParameterValue": "REPLACE_WITH_REVIEWED_AMI_ID"
+  },
+  {
+    "ParameterKey": "RuntimeBundleArtifactS3Bucket",
+    "ParameterValue": "REPLACE_WITH_ARTIFACT_BUCKET"
+  },
+  {
+    "ParameterKey": "RuntimeBundleArtifactS3Key",
+    "ParameterValue": "REPLACE_WITH_RUNTIME_BUNDLE_KEY"
+  },
+  {
+    "ParameterKey": "RuntimeBundleArtifactS3ObjectVersion",
+    "ParameterValue": "REPLACE_WITH_RUNTIME_BUNDLE_VERSION"
+  },
+  {
+    "ParameterKey": "RuntimeBundleArtifactSHA256",
+    "ParameterValue": "REPLACE_WITH_RUNTIME_BUNDLE_SHA256"
+  },
+  {
+    "ParameterKey": "RuntimeProfileParameterName",
+    "ParameterValue": "/my-hermes-agent/runtime/profile"
+  },
+  {
+    "ParameterKey": "GitCodingEnabled",
+    "ParameterValue": "false"
+  }
+]
