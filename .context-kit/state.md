@@ -6,8 +6,11 @@ Active Task: TASK-009
 
 ## Current summary
 
-The public runtime component explicitly adopts Context Kit 0.2.0 project spec
-v1 with the repository profile. Mutable, non-secret consumer preferences are
+The public runtime component explicitly adopts Context Kit 0.5.0 project spec
+v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
+and the advisory `delivery-governance` extension. The extension names the
+optional `ai-delivery-governance` Skill without claiming it is installed in a
+live runtime. Mutable, non-secret consumer preferences are
 loaded from a separately validated SSM runtime profile instead of CloudFormation
 or first-boot User Data. A public first-deployment path now covers read-only AWS
 discovery, optional neutral bootstrap infrastructure, immutable artifact

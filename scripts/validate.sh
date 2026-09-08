@@ -3,8 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-for path in PROJECT.md AGENTS.md .hermes/context-kit.json .hermes/context-index.md .hermes/state.md \
-  .hermes/checkpoints/README.md tasks/README.md tasks/current.md \
+for path in PROJECT.md AGENTS.md .context-kit/manifest.json .context-kit/index.md .context-kit/state.md \
+  .context-kit/checkpoints/README.md tasks/README.md tasks/current.md \
   docs/decisions/README.md deploy/QUICKSTART.md deploy/bootstrap/README.md \
   deploy/bootstrap/artifacts-cloudformation.yaml deploy/bootstrap/network-cloudformation.yaml \
   deploy/bootstrap/discover-environment.sh deploy/bootstrap/validate-template.sh \
@@ -13,19 +13,27 @@ for path in PROJECT.md AGENTS.md .hermes/context-kit.json .hermes/context-index.
   test -f "$repo_root/$path" || { echo "missing context path: $path" >&2; exit 1; }
 done
 
-python3 - "$repo_root/.hermes/context-kit.json" <<'PY'
+python3 - "$repo_root/.context-kit/manifest.json" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     manifest = json.load(handle)
 expected = {
-    "schema_version": 1,
-    "spec_version": 1,
-    "kit_version": "0.2.0",
+    "schema_version": 2,
+    "spec_version": 2,
+    "kit_version": "0.5.0",
     "profile": "repository",
     "features": ["tasks", "decisions", "checkpoints"],
-    "extensions": {},
+    "extensions": {
+        "delivery-governance": {
+            "mode": "advisory",
+            "skill": "ai-delivery-governance",
+            "version": 1,
+        }
+    },
+    "runtime_adapters": [{"name": "hermes", "version": 3}],
+    "workflow_adapter": {"name": "github", "version": 1},
 }
 if manifest != expected:
     raise SystemExit("unexpected Context Kit adoption manifest")
@@ -78,7 +86,7 @@ puts 'markdown-relative-links-ok'
 RUBY
 
 active_task="$(awk -F': ' '/^Active Task:/ {print $2}' "$repo_root/tasks/current.md")"
-state_task="$(awk -F': ' '/^Active Task:/ {print $2}' "$repo_root/.hermes/state.md")"
+state_task="$(awk -F': ' '/^Active Task:/ {print $2}' "$repo_root/.context-kit/state.md")"
 test "$active_task" = "$state_task" || {
   echo 'Task and State current pointers disagree' >&2
   exit 1

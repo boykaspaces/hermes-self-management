@@ -1,6 +1,7 @@
 # TASK-009: Pilot Advisory Delivery Governance Adoption
 
 Status: In Progress
+Delivery Stage: Build
 Governance: Required
 Priority: High
 
@@ -106,14 +107,23 @@ Ledger: `tasks/evidence/TASK-009/review.md`
   project; both Context Kit and complete consumer validation passed.
 - Recorded that existing Token Observer tests require local loopback authority
   and fail inside the file sandbox independently of this adoption.
+- Froze the Task contract at
+  `b24d5ae325b7c4bc4ea849bb0eaf9258eb334434` after the accepted 0.2.0
+  validator and complete consumer validation passed.
+- Applied the accepted Context Kit migration to specification v2 with Hermes
+  adapter v3 and GitHub workflow adapter v1.
+- Enabled advisory `delivery-governance` and named the optional
+  `ai-delivery-governance` Skill without claiming live installation.
+- Updated the public recovery routes and native manifest/state validation to
+  the `.context-kit/` owner.
+- Passed Context Kit and complete consumer validation before removing the four
+  legacy `.hermes/` project-context duplicates.
 
 ## Remaining
 
-- Freeze this Task contract and bind the review ledger to that revision.
-- Apply the reviewed v2 migration to this proposal branch.
-- Update only project-context routing and native validation owners.
-- Remove legacy project-context duplicates after v2 validation passes.
-- Run recovery, Initial Audit, validation, and exact-head Final Audit.
+- Commit the implementation candidate.
+- Run persistent recovery traversal and Initial Audit.
+- Run required validation and exact-head Final Audit.
 
 ## Blockers
 
@@ -121,10 +131,10 @@ None.
 
 ## Relevant Files
 
-- `.hermes/context-kit.json`
-- `.hermes/context-index.md`
-- `.hermes/state.md`
-- `.context-kit/`
+- `.context-kit/manifest.json`
+- `.context-kit/index.md`
+- `.context-kit/state.md`
+- `.context-kit/checkpoints/README.md`
 - `PROJECT.md`
 - `README.md`
 - `AGENTS.md`
@@ -135,6 +145,5 @@ None.
 
 ## Next Step
 
-Commit the frozen adoption contract, bind its exact revision in the review
-ledger, then apply the accepted Context Kit migration without touching runtime
-or deployment source.
+Commit the bounded migration candidate, recover it from persistent routing in
+a fresh read, and run Initial Audit against that exact implementation revision.
