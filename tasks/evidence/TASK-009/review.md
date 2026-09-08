@@ -2,7 +2,7 @@
 
 Task: TASK-009
 Contract Revision: b24d5ae325b7c4bc4ea849bb0eaf9258eb334434
-Initial Audit Base Revision: Pending
+Initial Audit Base Revision: 92938e8a7d6675226d6c012cf78866fd98c325ec
 Candidate Binding: GitHub pull-request head
 Validation Target: GitHub pull-request head
 Final Audit Evidence: Pending pull-request comment and user review
@@ -11,7 +11,7 @@ Evidence Mutability: Comment may be edited, hidden, or deleted by authorized Git
 Reviewer Identity / Independence: Agent author record is not independent; user review requested separately
 Enforcement Boundary: No required remote check is claimed; branch policy is reported after PR creation
 Bypass Boundary: Configured repository actors may bypass policy; acceptance must disclose observed state
-Review Mode: Not Started
+Review Mode: Initial Audit
 
 ## Supported Review Scope
 
@@ -23,11 +23,15 @@ Review Mode: Not Started
 
 ## Findings
 
-None recorded before Initial Audit.
+| ID | Severity | Origin | Contract / Evidence | Observed Revision | Disposition | Status | Introduced By |
+|---|---|---|---|---|---|---|---|
+| R-001 | P1 | Baseline | AC-4 recovery returns a stale `Remaining` and `Next Step` that still instruct committing the already committed implementation candidate | 92938e8a7d6675226d6c012cf78866fd98c325ec | FIX | Open | Not Applicable |
 
 ## Review Rounds
 
-None recorded before Initial Audit.
+| Round | Mode | Target | New Blocking | Closed Blocking | Result |
+|---|---|---|---:|---:|---|
+| 1 | Initial Audit | 92938e8a7d6675226d6c012cf78866fd98c325ec | 1 | 0 | Delta Review |
 
 ## Validation
 
@@ -35,13 +39,13 @@ None recorded before Initial Audit.
 |---|---|---|---|
 | Accepted Context Kit validation | Candidate | Local exact-source command | Pending |
 | Complete consumer validation | Candidate | Local `./scripts/validate.sh` output | Pending |
-| Recovery traversal | Candidate | Persistent artifact route | Pending |
+| Recovery traversal | 92938e8a7d6675226d6c012cf78866fd98c325ec | `PROJECT.md` -> `.context-kit/index.md` -> `tasks/current.md` -> TASK-009 -> Task-linked evidence | Pass with R-001 stale-action finding |
 | Exact-head validation | GitHub pull-request head | Clean local validation plus PR evidence | Pending |
 
 ## Gate Summary
 
 - Capability Gate 0: Pass after contract reduction
-- Open P0/P1: Not yet audited
+- Open P0/P1: 1
 - Required Validation: Pending
 - Final Audit: Pending
 - Candidate readiness: Not Ready

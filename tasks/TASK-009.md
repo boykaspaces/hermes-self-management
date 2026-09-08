@@ -1,7 +1,7 @@
 # TASK-009: Pilot Advisory Delivery Governance Adoption
 
 Status: In Progress
-Delivery Stage: Build
+Delivery Stage: Fix
 Governance: Required
 Priority: High
 
@@ -118,11 +118,16 @@ Ledger: `tasks/evidence/TASK-009/review.md`
   the `.context-kit/` owner.
 - Passed Context Kit and complete consumer validation before removing the four
   legacy `.hermes/` project-context duplicates.
+- Committed the bounded implementation candidate at
+  `92938e8a7d6675226d6c012cf78866fd98c325ec`.
+- Recovered the project, active Task, frozen contract, evidence, and next
+  action through the persisted `PROJECT.md` route without conversation state.
+- Completed Initial Audit with one P1 stale recovery-action finding and no
+  product, runtime, integration, or deployment source changes.
 
 ## Remaining
 
-- Commit the implementation candidate.
-- Run persistent recovery traversal and Initial Audit.
+- Resolve R-001 and run Delta Review against the Task recovery state.
 - Run required validation and exact-head Final Audit.
 
 ## Blockers
@@ -145,5 +150,5 @@ None.
 
 ## Next Step
 
-Commit the bounded migration candidate, recover it from persistent routing in
-a fresh read, and run Initial Audit against that exact implementation revision.
+Resolve R-001 by replacing the stale implementation action with the current
+review/validation action, then verify recovery routing in Delta Review.
