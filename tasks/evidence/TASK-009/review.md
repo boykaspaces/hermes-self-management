@@ -11,7 +11,7 @@ Evidence Mutability: Comment may be edited, hidden, or deleted by authorized Git
 Reviewer Identity / Independence: Agent author record is not independent; user review requested separately
 Enforcement Boundary: No required remote check is claimed; branch policy is reported after PR creation
 Bypass Boundary: Configured repository actors may bypass policy; acceptance must disclose observed state
-Review Mode: Delta Review
+Review Mode: Final Audit
 
 ## Supported Review Scope
 
@@ -38,8 +38,8 @@ Review Mode: Delta Review
 
 | Gate | Target Revision | Evidence | Result |
 |---|---|---|---|
-| Accepted Context Kit validation | Candidate | Local exact-source command | Pending |
-| Complete consumer validation | Candidate | Local `./scripts/validate.sh` output | Pending |
+| Accepted Context Kit validation | e513a41 | Context Kit source `80eea0d7a828ed50ddc92a9baea55d0dec1f8e00` returned `context-kit-ok` | Pass |
+| Complete consumer validation | e513a41 | 7 runtime-profile tests, 19 Token Observer tests, 6 bootstrap tests, template/script/privacy/link gates | Pass |
 | Recovery traversal | 5cf24b8 | `PROJECT.md` -> `.context-kit/index.md` -> `tasks/current.md` -> TASK-009 -> Task-linked evidence | Pass after R-001 fix |
 | Exact-head validation | GitHub pull-request head | Clean local validation plus PR evidence | Pending |
 
@@ -47,6 +47,7 @@ Review Mode: Delta Review
 
 - Capability Gate 0: Pass after contract reduction
 - Open P0/P1: 0
-- Required Validation: Pending
+- Required Validation: Local Pass; exact-head rerun Pending
 - Final Audit: Pending
-- Candidate readiness: Not Ready
+- Convergence Guard: Not triggered
+- Candidate readiness: Not Ready until exact-head validation and Final Audit pass

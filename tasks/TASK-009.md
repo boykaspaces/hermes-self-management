@@ -1,7 +1,6 @@
 # TASK-009: Pilot Advisory Delivery Governance Adoption
 
-Status: In Progress
-Delivery Stage: Validate
+Status: Completed
 Governance: Required
 Priority: High
 
@@ -128,14 +127,29 @@ Ledger: `tasks/evidence/TASK-009/review.md`
   review/validation action.
 - Delta Review recovered the Task through the canonical route, verified R-001,
   and found no regression.
+- Passed Context Kit 0.5.0 repository validation from exact accepted source
+  `80eea0d7a828ed50ddc92a9baea55d0dec1f8e00`.
+- Passed the complete consumer validation after migration and review fixes.
+- Prepared the completed project state and exact-head Final Audit boundary
+  without changing live runtime, integration, lock, or deployment state.
 
 ## Remaining
 
-- Run required validation and exact-head Final Audit.
+None.
 
 ## Blockers
 
 None.
+
+## Result
+
+The existing `hermes-self-management` project now uses Context Kit 0.5.0
+specification v2 in `.context-kit/`, explicitly adopts the optional advisory
+governance extension, routes recovery and agent instructions through the new
+owner, and validates that manifest and state through its native repository
+gate. TASK-009 itself completed the capability, freeze, recovery, review,
+validation, and candidate-completion cycle. This is source/project adoption,
+not live Skill installation or system integration acceptance.
 
 ## Relevant Files
 
@@ -153,5 +167,6 @@ None.
 
 ## Next Step
 
-Run Context Kit and complete consumer validation on the reviewed candidate,
-then prepare the completed proposal state for exact-head Final Audit.
+None for TASK-009. After this proposal is accepted, the integration repository
+may create the separate System Task for Increment 7; no lock or deployment
+state changes in this proposal.
