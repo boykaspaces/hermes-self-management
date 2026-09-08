@@ -12,12 +12,15 @@ coding, retained context mounts, managed upstream patches, and Token Observer.
 | `cloudformation.yaml` | Host, IAM role, network rules, first-boot User Data, immutable runtime-bundle identity, consumer-profile parameter name, and outputs |
 | `runtime-config.sh` | Idempotent generic runtime orchestration applied before Gateway start |
 | `runtime-profile.example.json` | Neutral non-secret consumer profile example |
+| `parameters.example.json` | Copyable non-secret CloudFormation parameter shape with explicit placeholders |
 | `validate_runtime_profile.py` | Strict profile schema, size, URL, hostname, and credential-material validation |
 | `apply_runtime_profile.py` | Atomic translation from a validated profile into Hermes `config.yaml` |
+| `publish-runtime-profile.sh` | Publish and byte-verify a private consumer profile stored outside the public clone |
 | `build_runtime_bundle.py` | Deterministic bundle of runtime configuration, managed patches, and Token Observer |
 | `publish-runtime-artifacts.sh` | Content-addressed runtime-bundle upload and deployment parameter output |
 | `validate-template.sh` | Runtime-bundle, YAML, User Data, shell, IAM, and security-invariant checks |
 | `publish-template.sh` | Content-addressed CloudFormation template upload and AWS validation |
+| `create-change-set.sh` | Create, but never execute, an initial Change Set from a private parameter file |
 | `patches/` | Version-specific upstream Hermes patch source and applied-file checksums |
 | `apply-hermes-patches.sh` | Commit-bound apply, verify, and restore operations |
 | `sync_hermes_patch_archive.py` | Deterministic managed-patch archive used by the runtime-bundle builder |
@@ -48,6 +51,11 @@ Choose and record privately:
 The template contains no production default AMI, Secret ARN, API endpoint,
 account ID, instance ID, bucket, model choice, Telegram enablement, MCP URL,
 Memory tuning, Skill approval preference, or proxy allowlist.
+
+For a new AWS account or a fresh clone, start with
+[`../QUICKSTART.md`](../QUICKSTART.md). Optional bootstrap templates and
+read-only discovery live in [`../bootstrap/`](../bootstrap/README.md); none of
+them selects account resources silently.
 
 ## Validate
 
@@ -89,8 +97,9 @@ Upload and deployment are operator-controlled writes.
 ## Deployment sequence
 
 1. Render and review `policies/deployer-policy.json.tmpl` outside the repository.
-2. Validate templates and the consumer profile, publish the profile to its
-   fixed SSM parameter, and create an EBS snapshot/rollback point for updates.
+2. Validate templates and the consumer profile, publish the profile from a
+   private path to its fixed SSM parameter, and create an EBS snapshot/rollback
+   point for updates.
 3. Publish the runtime bundle, then publish the content-addressed template and
    create a Change Set with the emitted runtime-bundle parameters and fixed
    profile parameter name.
@@ -102,6 +111,10 @@ Upload and deployment are operator-controlled writes.
 7. Run Gateway, Dashboard, Podman, egress, patch, observability, and optional
    credential-lease smoke and negative tests.
 8. Replace temporary deployer access with the rendered operator policy.
+
+For an initial create, `create-change-set.sh` enforces an external parameter
+file, rejects unresolved example placeholders, and stops before execution so
+the operator can inspect the complete resource and IAM change set.
 
 Changing a consumer preference normally updates only the versioned SSM profile
 and then restarts Gateway; it does not change CloudFormation, User Data, or the

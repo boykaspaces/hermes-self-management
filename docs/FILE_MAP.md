@@ -11,6 +11,8 @@ Status: Current index
 | `tasks/` | Component Task state and current pointer | Reviewing or continuing development |
 | `docs/decisions/README.md` | Public component decision index | Work depends on a durable repository decision |
 | `deploy/README.md` | Deployment domain router | Choosing a Stack or operation |
+| `deploy/QUICKSTART.md` | Public fresh-clone to Change Set runbook | Reproducing Hermes in a new AWS account |
+| `deploy/bootstrap/` | Optional discovery, network, and artifact-bucket bootstrap | Preparing first-deployment prerequisites |
 | `deploy/minimal/cloudformation.yaml` | Hermes host and bootstrap implementation | Changing runtime infrastructure |
 | `deploy/minimal/README.md` | Current host deployment and validation flow | Deploying or upgrading Hermes |
 | `deploy/minimal/HERMES_UPGRADE_RUNBOOK.md` | Version/patch migration and rollback gate | Changing Hermes revision |

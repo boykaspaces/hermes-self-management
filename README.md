@@ -10,6 +10,8 @@ observability.
 
 | Path | Status | Owns | Read when |
 |---|---|---|---|
+| [`deploy/QUICKSTART.md`](./deploy/QUICKSTART.md) | Public first-deployment path | Fresh clone through a human-reviewed AWS Change Set | Reproducing a new Hermes deployment in another AWS account |
+| [`deploy/bootstrap/`](./deploy/bootstrap/README.md) | Optional bootstrap | Read-only discovery, dedicated network, and private artifact bucket | Preparing an account that lacks reviewed prerequisite resources |
 | [`deploy/`](./deploy/README.md) | Current index | Runtime, Secret, and budget CloudFormation domains | Deploying or operating AWS infrastructure |
 | [`deploy/minimal/`](./deploy/minimal/README.md) | Active deployment | Hermes EC2 runtime and host bootstrap | Building, validating, or upgrading the host |
 | [`hermes-plugins/observability/token_observer/`](./hermes-plugins/observability/token_observer/README.md) | Active source | Redacted model/tool usage metrics and local viewer | Changing or installing observability |
@@ -23,6 +25,11 @@ Start with the narrowest deployment or plugin README. This repository's own
 maintenance Tasks are public. Production parameters, deployment records,
 actual account resources, and live Hermes context belong in a private
 operations repository.
+
+New operators should start with [`deploy/QUICKSTART.md`](./deploy/QUICKSTART.md).
+It provides a consumer-neutral path from a public clone to a Change Set while
+requiring real parameter files and deployment evidence to remain outside this
+repository.
 
 ## Validation
 
