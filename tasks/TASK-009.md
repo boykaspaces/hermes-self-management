@@ -1,7 +1,7 @@
 # TASK-009: Pilot Advisory Delivery Governance Adoption
 
 Status: In Progress
-Delivery Stage: Fix
+Delivery Stage: Validate
 Governance: Required
 Priority: High
 
@@ -124,10 +124,13 @@ Ledger: `tasks/evidence/TASK-009/review.md`
   action through the persisted `PROJECT.md` route without conversation state.
 - Completed Initial Audit with one P1 stale recovery-action finding and no
   product, runtime, integration, or deployment source changes.
+- Resolved R-001 by replacing the stale implementation action with the current
+  review/validation action.
+- Delta Review recovered the Task through the canonical route, verified R-001,
+  and found no regression.
 
 ## Remaining
 
-- Resolve R-001 and run Delta Review against the Task recovery state.
 - Run required validation and exact-head Final Audit.
 
 ## Blockers
@@ -150,5 +153,5 @@ None.
 
 ## Next Step
 
-Resolve R-001 by replacing the stale implementation action with the current
-review/validation action, then verify recovery routing in Delta Review.
+Run Context Kit and complete consumer validation on the reviewed candidate,
+then prepare the completed proposal state for exact-head Final Audit.
