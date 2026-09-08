@@ -1,0 +1,28 @@
+{
+  "extensions": {
+    "delivery-governance": {
+      "mode": "advisory",
+      "skill": "ai-delivery-governance",
+      "version": 1
+    }
+  },
+  "features": [
+    "tasks",
+    "decisions",
+    "checkpoints"
+  ],
+  "kit_version": "0.5.0",
+  "profile": "repository",
+  "runtime_adapters": [
+    {
+      "name": "hermes",
+      "version": 3
+    }
+  ],
+  "schema_version": 2,
+  "spec_version": 2,
+  "workflow_adapter": {
+    "name": "github",
+    "version": 1
+  }
+}

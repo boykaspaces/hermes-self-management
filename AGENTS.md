@@ -2,9 +2,9 @@
 
 ## Entry and retrieval
 
-- Start with `README.md`; use `.hermes/context-index.md` for repository
+- Start with `README.md`; use `.context-kit/index.md` for repository
   maintenance state, then follow the narrowest deployment or plugin route.
-- Read `.hermes/context-kit.json` before changing project context; it owns the
+- Read `.context-kit/manifest.json` before changing project context; it owns the
   adopted public protocol version, profile, and optional features.
 - Prefer CloudFormation, scripts, policy templates, tests, and the nearest
   README over summaries.
@@ -14,8 +14,10 @@
 ## Project and system context
 
 - Use `project-context-management` from the Context Kit release pinned by
-  `.hermes/context-kit.json` for
+  `.context-kit/manifest.json` for
   this repository's Task, State, Checkpoint, ADR, and index mutations.
+- Load `ai-delivery-governance` only when the manifest enables its advisory
+  extension and the current Task declares `Governance: Required`.
 - Also use `multi-repo-system-management` when a Task has a parent System Task,
   changes another repository, advances a component revision, or requires an
   integration Handoff.

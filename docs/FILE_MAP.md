@@ -7,7 +7,7 @@ Status: Current index
 | `README.md` | Repository entry, validation, and related components | Entering the repository |
 | `PROJECT.md` | Stable identity and source-of-truth boundaries | Maintaining the project |
 | `AGENTS.md` | Repository-wide AI instructions | Before changing files |
-| `.hermes/context-index.md` | Current-first public maintenance router | Resuming repository work |
+| `.context-kit/index.md` | Current-first public maintenance router | Resuming repository work |
 | `tasks/` | Component Task state and current pointer | Reviewing or continuing development |
 | `docs/decisions/README.md` | Public component decision index | Work depends on a durable repository decision |
 | `deploy/README.md` | Deployment domain router | Choosing a Stack or operation |

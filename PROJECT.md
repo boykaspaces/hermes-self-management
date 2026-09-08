@@ -16,15 +16,15 @@ Hermes agent while keeping production state and identity outside public source.
 - The nearest deployment or plugin README owns current operating instructions.
 - `docs/SECURITY.md` owns the repository-level trust-boundary summary.
 - `docs/FILE_MAP.md` owns navigation only.
-- `tasks/` and `.hermes/` own only this public repository's maintenance state.
+- `tasks/` and `.context-kit/` own only this public repository's maintenance state.
 
 ## Context entry points
 
 | Artifact | Purpose | Read when |
 |---|---|---|
-| [`.hermes/context-kit.json`](./.hermes/context-kit.json) | Adopted Context Kit contract | Changing or validating project context |
-| [`.hermes/context-index.md`](./.hermes/context-index.md) | Current-first repository context | Starting or resuming maintenance |
-| [`.hermes/state.md`](./.hermes/state.md) | Current repository summary | Asking what work is active |
+| [`.context-kit/manifest.json`](./.context-kit/manifest.json) | Adopted Context Kit contract | Changing or validating project context |
+| [`.context-kit/index.md`](./.context-kit/index.md) | Current-first repository context | Starting or resuming maintenance |
+| [`.context-kit/state.md`](./.context-kit/state.md) | Current repository summary | Asking what work is active |
 | [`tasks/current.md`](./tasks/current.md) | Primary active Task pointer | Continuing current component work |
 | [`docs/decisions/README.md`](./docs/decisions/README.md) | Repository decision index | Work depends on a durable local decision |
 
