@@ -2,7 +2,7 @@
 
 Project: hermes-self-management
 Status: Active
-Active Task: None
+Active Task: TASK-009
 
 ## Current summary
 
@@ -12,12 +12,14 @@ loaded from a separately validated SSM runtime profile instead of CloudFormation
 or first-boot User Data. A public first-deployment path now covers read-only AWS
 discovery, optional neutral bootstrap infrastructure, immutable artifact
 publication, external consumer parameters, and human-reviewed Change Set
-creation without private operations access.
+creation without private operations access. TASK-009 is preparing the bounded
+Context Kit v2 and advisory-governance adoption proposal without changing
+runtime or deployment source.
 
 ## Primary focus
 
-No active Task. Public AWS bootstrap path TASK-008 is component-validated and
-ready for integration acceptance through `personal-hermes-agent:TASK-017`.
+Complete TASK-009's project-context migration and governance dogfood cycle,
+then stop at its pull request for user review before any integration update.
 
 ## Active constraints
 

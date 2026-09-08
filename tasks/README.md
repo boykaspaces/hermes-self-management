@@ -2,7 +2,9 @@
 
 ## In Progress
 
-None.
+| ID / File | Status | Title | Read when |
+|---|---|---|---|
+| [`TASK-009`](./TASK-009.md) | In Progress | Pilot advisory delivery governance adoption | Continuing the Context Kit v2 and governance adoption pilot |
 
 ## Blocked
 
