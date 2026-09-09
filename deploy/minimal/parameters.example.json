@@ -24,6 +24,30 @@
     "ParameterValue": "REPLACE_WITH_REVIEWED_AMI_ID"
   },
   {
+    "ParameterKey": "HermesGitRef",
+    "ParameterValue": "29112bef099274229cadff79cdff7bf7b99c4b77"
+  },
+  {
+    "ParameterKey": "HermesInstallerSHA256",
+    "ParameterValue": "85ef536d455e51ab67aa74d79272efd49fe717597dbaadfd3cca179a905f4706"
+  },
+  {
+    "ParameterKey": "HermesUvLockSHA256",
+    "ParameterValue": "383cd8f98ec23dc3fe4cf63759ec73be5a869cc953f068b4e79ec4e8ed00287d"
+  },
+  {
+    "ParameterKey": "HermesPackageLockSHA256",
+    "ParameterValue": "83beeba3f6e7826312444c7b64067488afae9ed88ad7326ecef61ac235bab86d"
+  },
+  {
+    "ParameterKey": "AgentBrowserVersion",
+    "ParameterValue": "0.26.0"
+  },
+  {
+    "ParameterKey": "CodingContainerBaseImage",
+    "ParameterValue": "docker.io/nikolaik/python-nodejs@sha256:6ed4d9fb74dc6c7a5caa9120d8d3c507dbf97fb112b7b09d0d9f7d71f1ce919d"
+  },
+  {
     "ParameterKey": "RuntimeBundleArtifactS3Bucket",
     "ParameterValue": "REPLACE_WITH_ARTIFACT_BUCKET"
   },

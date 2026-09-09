@@ -175,6 +175,56 @@ class BootstrapContractTest(unittest.TestCase):
             any(re.search(r"token|password|private.?key|oauth", key, re.I) for key in values)
         )
 
+    def test_first_boot_uses_reviewed_immutable_installation_inputs(self):
+        template = (MINIMAL / "cloudformation.yaml").read_text(encoding="utf-8")
+        parameters = json.loads(
+            (MINIMAL / "parameters.example.json").read_text(encoding="utf-8")
+        )
+        values = {item["ParameterKey"]: item["ParameterValue"] for item in parameters}
+
+        expected = {
+            "HermesGitRef": "29112bef099274229cadff79cdff7bf7b99c4b77",
+            "HermesInstallerSHA256": (
+                "85ef536d455e51ab67aa74d79272efd49fe717597dbaadfd3cca179a905f4706"
+            ),
+            "HermesUvLockSHA256": (
+                "383cd8f98ec23dc3fe4cf63759ec73be5a869cc953f068b4e79ec4e8ed00287d"
+            ),
+            "HermesPackageLockSHA256": (
+                "83beeba3f6e7826312444c7b64067488afae9ed88ad7326ecef61ac235bab86d"
+            ),
+            "AgentBrowserVersion": "0.26.0",
+            "CodingContainerBaseImage": (
+                "docker.io/nikolaik/python-nodejs@sha256:"
+                "6ed4d9fb74dc6c7a5caa9120d8d3c507dbf97fb112b7b09d0d9f7d71f1ce919d"
+            ),
+        }
+        self.assertEqual({key: values[key] for key in expected}, expected)
+
+        for marker in (
+            "raw.githubusercontent.com/NousResearch/hermes-agent/"
+            "${HermesGitRef}/scripts/install.sh",
+            "${HermesInstallerSHA256}",
+            "${HermesUvLockSHA256}",
+            "${HermesPackageLockSHA256}",
+            "--commit '${HermesGitRef}'",
+            "/home/hermes/.hermes/bin/uv sync --extra all --locked",
+            "agent-browser@${AgentBrowserVersion}",
+            "podman pull '${CodingContainerBaseImage}'",
+            "/home/hermes/.hermes/install-manifest/python-packages.txt",
+            "npm ls --all --json --workspace web",
+            "coding_container_resolved_digest=",
+        ):
+            self.assertIn(marker, template)
+
+        self.assertNotIn("hermes-agent.nousresearch.com/install.sh", template)
+        self.assertNotIn('pip install -e ".[all]"', template)
+        self.assertNotIn("agent-browser@^", template)
+        self.assertNotIn(
+            "podman pull docker.io/nikolaik/python-nodejs:python3.11-nodejs20",
+            template,
+        )
+
     def test_runtime_profile_parameter_name_has_one_quickstart_source(self):
         parameters = json.loads(
             (MINIMAL / "parameters.example.json").read_text(encoding="utf-8")

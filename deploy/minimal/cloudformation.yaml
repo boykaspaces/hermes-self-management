@@ -42,6 +42,34 @@ Parameters:
     ConstraintDescription: Must be a full 40-character Git commit SHA.
     Description: Exact Hermes Agent source revision verified in production.
 
+  HermesInstallerSHA256:
+    Type: String
+    Default: 85ef536d455e51ab67aa74d79272efd49fe717597dbaadfd3cca179a905f4706
+    AllowedPattern: "^[0-9a-f]{64}$"
+    ConstraintDescription: Must be a lowercase SHA-256 digest.
+    Description: SHA-256 of scripts/install.sh at HermesGitRef. Update both values together.
+
+  HermesUvLockSHA256:
+    Type: String
+    Default: 383cd8f98ec23dc3fe4cf63759ec73be5a869cc953f068b4e79ec4e8ed00287d
+    AllowedPattern: "^[0-9a-f]{64}$"
+    ConstraintDescription: Must be a lowercase SHA-256 digest.
+    Description: SHA-256 of uv.lock at HermesGitRef. Update both values together.
+
+  HermesPackageLockSHA256:
+    Type: String
+    Default: 83beeba3f6e7826312444c7b64067488afae9ed88ad7326ecef61ac235bab86d
+    AllowedPattern: "^[0-9a-f]{64}$"
+    ConstraintDescription: Must be a lowercase SHA-256 digest.
+    Description: SHA-256 of package-lock.json at HermesGitRef. Update both values together.
+
+  AgentBrowserVersion:
+    Type: String
+    Default: 0.26.0
+    AllowedPattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+    ConstraintDescription: Must be an exact semantic version without a range prefix.
+    Description: Exact Agent Browser npm package version used for the browser binary install.
+
   AWSCLIVersion:
     Type: String
     Default: 2.36.23
@@ -137,9 +165,10 @@ Parameters:
 
   CodingContainerBaseImage:
     Type: String
-    Default: docker.io/nikolaik/python-nodejs:python3.11-nodejs20
-    AllowedPattern: '^[A-Za-z0-9./:_@-]+$'
-    Description: Base image used to build the local Hermes coding image with the credential helper.
+    Default: docker.io/nikolaik/python-nodejs@sha256:6ed4d9fb74dc6c7a5caa9120d8d3c507dbf97fb112b7b09d0d9f7d71f1ce919d
+    AllowedPattern: '^[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}$'
+    ConstraintDescription: Must be an OCI image reference pinned by SHA-256 digest.
+    Description: Immutable x86_64 base image used to build the local Hermes coding image with the credential helper.
 
   HermesStateBackupBucket:
     Type: String
@@ -544,27 +573,55 @@ Resources:
 
           install -d -m 0700 -o hermes -g hermes /home/hermes/.hermes
 
+          installer_url='https://raw.githubusercontent.com/NousResearch/hermes-agent/${HermesGitRef}/scripts/install.sh'
+          installer_file="$(mktemp)"
+          chmod 0555 "$installer_file"
           for installer_attempt in 1 2 3; do
-            if sudo -u hermes -H env NODE_DEPS_TIMEOUT=1200 bash -lc \
-              'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive --skip-setup --skip-browser --skip-computer-use'; then
+            if curl -fsSLo "$installer_file" "$installer_url" \
+              && printf '%s  %s\n' '${HermesInstallerSHA256}' "$installer_file" | sha256sum --check - \
+              && sudo -u hermes -H env \
+                HERMES_HOME=/home/hermes/.hermes \
+                HERMES_INSTALL_DIR=/home/hermes/.hermes/hermes-agent \
+                NODE_DEPS_TIMEOUT=1200 \
+                bash "$installer_file" \
+                  --non-interactive \
+                  --skip-setup \
+                  --skip-browser \
+                  --skip-computer-use \
+                  --commit '${HermesGitRef}' \
+                  --force-commit; then
               break
             fi
             if [ "$installer_attempt" -eq 3 ]; then
+              rm -f "$installer_file"
               echo "Hermes installer failed after three attempts" >&2
               exit 1
             fi
             sleep 10
           done
+          installer_actual_sha256="$(sha256sum "$installer_file" | awk '{print $1}')"
+          rm -f "$installer_file"
 
-          sudo -u hermes -H env HERMES_GIT_REF='${HermesGitRef}' bash -lc '
+          sudo -u hermes -H env \
+            HERMES_GIT_REF='${HermesGitRef}' \
+            HERMES_UV_LOCK_SHA256='${HermesUvLockSHA256}' \
+            HERMES_PACKAGE_LOCK_SHA256='${HermesPackageLockSHA256}' \
+            bash -lc '
+            set -euo pipefail
             cd /home/hermes/.hermes/hermes-agent
             if ! git cat-file -e "$HERMES_GIT_REF^{commit}" 2>/dev/null; then
               git fetch --quiet --depth 1 origin "$HERMES_GIT_REF"
             fi
             git checkout --quiet --detach "$HERMES_GIT_REF"
             test "$(git rev-parse HEAD)" = "$HERMES_GIT_REF"
-            venv/bin/python -m ensurepip --upgrade
-            venv/bin/python -m pip install -e ".[all]"
+            printf "%s  %s\n" "$HERMES_UV_LOCK_SHA256" uv.lock | sha256sum --check -
+            printf "%s  %s\n" "$HERMES_PACKAGE_LOCK_SHA256" package-lock.json | sha256sum --check -
+            locked_uv_config="$(mktemp -d)"
+            trap '\''rmdir "$locked_uv_config" 2>/dev/null || true'\'' EXIT
+            XDG_CONFIG_HOME="$locked_uv_config" \
+              XDG_CONFIG_DIRS="$locked_uv_config" \
+              UV_PROJECT_ENVIRONMENT=/home/hermes/.hermes/hermes-agent/venv \
+              /home/hermes/.hermes/bin/uv sync --extra all --locked
           '
 
           sudo -u hermes -H env \
@@ -576,7 +633,7 @@ Resources:
             USER=hermes \
             LOGNAME=hermes \
             PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
-            npx --ignore-scripts -y 'agent-browser@^0.26.0' install --with-deps
+            npx --ignore-scripts -y 'agent-browser@${AgentBrowserVersion}' install --with-deps
           chown -R hermes:hermes \
             /home/hermes/.agent-browser \
             /home/hermes/.hermes/hermes-agent/node_modules
@@ -646,12 +703,64 @@ Resources:
             /usr/local/sbin/hermes-sync-runtime-config
 
           sudo -u hermes -H env HERMES_DOCKER_BINARY=/usr/bin/podman \
-            podman pull docker.io/nikolaik/python-nodejs:python3.11-nodejs20
+            podman pull '${CodingContainerBaseImage}'
 
           sudo -u hermes -H env \
             PATH=/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
             bash -lc \
               'cd /home/hermes/.hermes/hermes-agent; npm ci --workspace web --silent --prefer-offline; npm run build --workspace web'
+
+          install_manifest_dir=/home/hermes/.hermes/install-manifest
+          install -d -m 0700 -o hermes -g hermes "$install_manifest_dir"
+          sudo -u hermes -H env \
+            PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            bash -lc '
+              set -euo pipefail
+              cd /home/hermes/.hermes/hermes-agent
+              /home/hermes/.hermes/bin/uv pip freeze \
+                --python venv/bin/python | LC_ALL=C sort \
+                > /home/hermes/.hermes/install-manifest/python-packages.txt
+              npm ls --all --json --workspaces=false \
+                > /home/hermes/.hermes/install-manifest/node-root-dependencies.json
+              npm ls --all --json --workspace web \
+                > /home/hermes/.hermes/install-manifest/node-web-dependencies.json
+            '
+          hermes_revision="$(sudo -u hermes -H git -C /home/hermes/.hermes/hermes-agent rev-parse HEAD)"
+          uv_lock_actual_sha256="$(sha256sum /home/hermes/.hermes/hermes-agent/uv.lock | awk '{print $1}')"
+          package_lock_actual_sha256="$(sha256sum /home/hermes/.hermes/hermes-agent/package-lock.json | awk '{print $1}')"
+          python_version="$(sudo -u hermes -H /home/hermes/.hermes/hermes-agent/venv/bin/python --version)"
+          uv_version="$(sudo -u hermes -H /home/hermes/.hermes/bin/uv --version)"
+          node_version="$(sudo -u hermes -H env PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/usr/local/bin:/usr/bin:/bin node --version)"
+          npm_version="$(sudo -u hermes -H env PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/usr/local/bin:/usr/bin:/bin npm --version)"
+          agent_browser_version="$(env \
+            HOME=/home/hermes \
+            PATH=/home/hermes/.hermes/node/bin:/home/hermes/.hermes/node:/home/hermes/.local/bin:/usr/local/bin:/usr/bin:/bin \
+            npx --ignore-scripts -y 'agent-browser@${AgentBrowserVersion}' --version | head -n 1)"
+          printf '%s\n' "$agent_browser_version" | grep -F '${AgentBrowserVersion}'
+          container_resolved_digest="$(sudo -u hermes -H env HERMES_DOCKER_BINARY=/usr/bin/podman \
+            podman image inspect --format '{{.Digest}}' '${CodingContainerBaseImage}')"
+          expected_container_digest="$(printf '%s' '${CodingContainerBaseImage}' | awk -F@ '{print $2}')"
+          test "$container_resolved_digest" = "$expected_container_digest"
+          cat >"$install_manifest_dir/identity.txt" <<EOF
+          schema_version=1
+          hermes_revision=$hermes_revision
+          installer_url=$installer_url
+          installer_sha256=$installer_actual_sha256
+          uv_lock_sha256=$uv_lock_actual_sha256
+          package_lock_sha256=$package_lock_actual_sha256
+          agent_browser=$agent_browser_version
+          coding_container_image=${CodingContainerBaseImage}
+          coding_container_resolved_digest=$container_resolved_digest
+          python=$python_version
+          uv=$uv_version
+          node=$node_version
+          npm=$npm_version
+          python_packages=python-packages.txt
+          node_root_dependencies=node-root-dependencies.json
+          node_web_dependencies=node-web-dependencies.json
+          EOF
+          chown -R hermes:hermes "$install_manifest_dir"
+          chmod 0600 "$install_manifest_dir"/*
 
           HERMES_UID="$(id -u hermes)"
           systemctl start "user@$HERMES_UID.service"

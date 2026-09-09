@@ -37,6 +37,9 @@ Choose and record privately:
 - VPC and subnet with the intended outbound path;
 - reviewed AMI ID for the target Region;
 - exact Hermes Git commit compatible with the managed patch set;
+- installer, `uv.lock`, and `package-lock.json` SHA-256 values calculated from
+  that same commit;
+- exact Agent Browser version and digest-pinned x86_64 coding-container image;
 - an existing SSM String parameter containing a validated, non-secret runtime
   profile and its absolute parameter name;
 - optional retained Telegram Secret ARN;
@@ -123,6 +126,31 @@ key/SHA. A cached bundle and last valid profile remain usable during a transient
 read failure. Rollback restores the previous SSM Parameter version for profile
 changes or advances the stack to a previous reviewed bundle identity for code
 changes.
+
+## Installed software manifest
+
+First boot verifies the commit-scoped installer and both upstream lock files,
+then performs a final `uv sync --extra all --locked` and locked `npm ci` runs.
+It writes a non-secret troubleshooting baseline under:
+
+```text
+/home/hermes/.hermes/install-manifest/identity.txt
+/home/hermes/.hermes/install-manifest/python-packages.txt
+/home/hermes/.hermes/install-manifest/node-root-dependencies.json
+/home/hermes/.hermes/install-manifest/node-web-dependencies.json
+```
+
+`identity.txt` records the Hermes commit, installer and lock hashes, exact
+Agent Browser package, configured and resolved container-image digests, and
+Python, uv, Node, and npm versions. The other files record the actual installed
+Python packages and Node dependency trees. They contain no OAuth or Secret
+values and are mode `0600`; retrieve them through the owner-controlled SSM
+session and keep deployment evidence in the private operator system.
+
+Changing `HermesGitRef` requires recalculating and reviewing all three source
+hashes. Changing Agent Browser or the coding image requires an exact package
+version or image digest. Never replace these with a version range, mutable URL,
+or tag-only image reference.
 
 See `HERMES_UPGRADE_RUNBOOK.md` before changing `HermesGitRef` or a managed
 patch set.

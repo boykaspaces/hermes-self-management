@@ -278,6 +278,13 @@ jq --arg name "$HERMES_RUNTIME_PROFILE_PARAMETER" \
 chmod 600 ../my-hermes-ops/hermes-parameters.json
 ```
 
+The example deliberately carries the reviewed Hermes commit together with its
+installer, `uv.lock`, and `package-lock.json` SHA-256 values, plus an exact
+Agent Browser version and digest-pinned coding image. Treat them as one
+installation identity. If the Hermes commit changes, recalculate all three
+source hashes from that commit and repeat the upgrade review; never retain an
+old hash merely to make validation pass.
+
 Add optional `TelegramRuntimeSecretArn`,
 `PersonalToolsClientTokenSecretArn`, or credential-agent parameters only when
 those capabilities are intentionally enabled. Do not add Secret values.
@@ -311,8 +318,9 @@ aws cloudformation describe-change-set \
 
 Confirm the EC2 security group has no inbound rule, the selected subnet and
 AMI are expected, IAM and Secret access are narrowly scoped, artifact
-identities are immutable, and no unknown replacement is present. Execute only
-after that human review.
+identities are immutable, the installer/lock/browser/image values match the
+reviewed installation identity, and no unknown replacement is present. Execute
+only after that human review.
 
 Export the exact Change Set ID printed by the helper, execute it, and wait for
 the first-boot resource signal:
@@ -509,6 +517,8 @@ cache, and session state survive a host restart at the functional level.
 
 Run the Gateway, Dashboard, Telegram, Runtime Profile, Secret, Podman, egress,
 patch, and observability checks in [`minimal/README.md`](./minimal/README.md).
-Record actual Stack IDs, parameters, outputs, artifact versions, the two
-conversation markers, restart acceptance, and rollback targets only in the
-operator's private system. Do not record OAuth material or session content.
+From an SSM shell, review the non-secret files under
+`/home/hermes/.hermes/install-manifest/` and record them with the actual Stack
+IDs, parameters, outputs, artifact versions, two conversation markers, restart
+acceptance, and rollback targets only in the operator's private system. Do not
+record OAuth material or session content.
