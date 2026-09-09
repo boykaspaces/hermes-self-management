@@ -2,7 +2,9 @@
 
 ## In Progress
 
-None.
+| ID / File | Status | Title | Read when |
+|---|---|---|---|
+| [`TASK-018`](./TASK-018.md) | In Progress | Add structured Context workspace mounts | Reviewing Runtime Profile v2, narrow mount generation, or non-deployment boundary |
 
 ## Blocked
 

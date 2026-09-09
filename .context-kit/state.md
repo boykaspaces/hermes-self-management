@@ -2,9 +2,17 @@
 
 Project: hermes-self-management
 Status: Active
-Active Task: None
+Active Task: TASK-018
 
 ## Current summary
+
+TASK-018 is active after the exact locked source passed a non-deployment
+feasibility probe: the current profile pipeline preserved two narrow Context
+mounts, credential injection remained independent, the proposed v2 profile was
+1304 compact bytes, and the current strict schema rejected the unimplemented
+field. This Task adds a v1-compatible schema v2 and derives only fixed registry
+and managed-project destinations; it does not publish or apply a consumer
+profile.
 
 TASK-017's bounded candidate corrects TASK-016's `Parent System Task` field to
 the bare canonical identity required by the reviewed multi-repository
@@ -67,8 +75,8 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-017 metadata proposal before private source
-acceptance. No primary active Task is selected here.
+Implement and validate TASK-018 as a bounded public source proposal, then wait
+for review before private source acceptance or runtime configuration.
 
 ## Active constraints
 
