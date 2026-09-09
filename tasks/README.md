@@ -16,6 +16,7 @@ None.
 
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
+| [`TASK-014`](./TASK-014.md) | Completed | Pin first-boot installation inputs | Reviewing installer, dependency-lock, browser, or container-image reproducibility |
 | [`TASK-013`](./TASK-013.md) | Completed | Document prerequisites and runtime defaults | Reviewing local prerequisites or default deployment capabilities |
 | [`TASK-012`](./TASK-012.md) | Completed | Complete the first-conversation Quickstart | Reviewing post-Change-Set onboarding and reboot acceptance |
 | [`TASK-011`](./TASK-011.md) | Completed | Align deployer IAM with first deployment | Reviewing restricted-identity deployment permissions |

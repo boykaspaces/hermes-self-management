@@ -29,7 +29,7 @@ awk '
 
 user_data_bytes="$(wc -c <"$user_data_file" | tr -d ' ')"
 user_data_sha256="$(shasum -a 256 "$user_data_file" | awk '{print $1}')"
-expected_user_data_sha256="bea0ae30705fe9860a4626008f33504166ad10a4905b67c01704224be5dfe549"
+expected_user_data_sha256="2b3836e871f9fc4c3ba66dbdea89e0a481065901c9b3192dc3c6f916f273105a"
 template_bytes="$(wc -c <"$template" | tr -d ' ')"
 if [ "$user_data_bytes" -gt 16384 ]; then
   echo "EC2 User Data is $user_data_bytes bytes; the raw limit is 16384" >&2
@@ -88,6 +88,14 @@ rg -q 'provider": "openai-codex"' "$runtime_profile_apply"
 rg -q 'config.pop\("fallback_providers", None\)' "$runtime_profile_apply"
 rg -q 'task\["provider"\] = "main"' "$runtime_profile_apply"
 rg -q 'Default: 29112bef099274229cadff79cdff7bf7b99c4b77' "$template"
+rg -q 'Default: 85ef536d455e51ab67aa74d79272efd49fe717597dbaadfd3cca179a905f4706' "$template"
+rg -q 'Default: 383cd8f98ec23dc3fe4cf63759ec73be5a869cc953f068b4e79ec4e8ed00287d' "$template"
+rg -q 'Default: 83beeba3f6e7826312444c7b64067488afae9ed88ad7326ecef61ac235bab86d' "$template"
+rg -Fq 'raw.githubusercontent.com/NousResearch/hermes-agent/${HermesGitRef}/scripts/install.sh' "$template"
+rg -Fq '/home/hermes/.hermes/bin/uv sync --extra all --locked' "$template"
+rg -Fq "agent-browser@\${AgentBrowserVersion}" "$template"
+rg -Fq "podman pull '\${CodingContainerBaseImage}'" "$template"
+rg -Fq '/home/hermes/.hermes/install-manifest/python-packages.txt' "$template"
 rg -q 'RuntimeBundleArtifactSHA256' "$template"
 rg -q 'ReadHermesRuntimeBundle' "$template"
 rg -q 'HERMES_RUNTIME_BUNDLE_DIR' "$template"
@@ -129,6 +137,16 @@ fi
 
 if rg -n 'config set model\.provider bedrock|amazon\.nova|pre-nova-cache-fix' "$template" "$runtime_config"; then
   echo "Retired Bedrock/Nova bootstrap or P-001 patch logic must not return" >&2
+  exit 1
+fi
+
+if rg -F -n \
+  -e 'https://hermes-agent.nousresearch.com/install.sh' \
+  -e 'pip install -e ".[all]"' \
+  -e 'agent-browser@^' \
+  -e 'podman pull docker.io/nikolaik/python-nodejs:python3.11-nodejs20' \
+  "$template"; then
+  echo "First-boot installer, dependencies, browser, and container image must be immutable" >&2
   exit 1
 fi
 

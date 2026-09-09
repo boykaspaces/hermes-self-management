@@ -49,6 +49,7 @@ Patch set、运行完整验收并发布对应模板。当前模板遇到 commit�
   - `tests/tools/test_docker_environment.py`
 - [ ] 复制所有`*.pre-*-fix.bak`到 checkout之外的升级归档目录。
 - [ ] 记录当前 Gateway、Dashboard、Telegram、Viewer、Browser和 Podman验收基线。
+- [ ] 复制`/home/hermes/.hermes/install-manifest/`，保存当前实际依赖版本与安装身份。
 - [ ] 确认回滚目标 commit和上一版 CloudFormation `TemplateURL`。
 
 不得只依赖 Hermes自动创建的 git stash。升级前证据必须位于
@@ -91,7 +92,9 @@ sha256sum \
 3. 恢复`P-001`、`P-002`、`P-003`涉及文件的上游版本，使这些受管文件在升级前保持 clean。
 4. 再次检查`git status`；其他未知修改不得被顺手删除或混入补丁归档。
 5. 执行 Hermes官方升级流程，并记录新版本、commit和迁移输出。
-6. 对目标 commit生成新的版本化 Patch set，并在隔离 checkout实际执行一次
+6. 从目标 commit重新计算`install.sh`、`uv.lock`和`package-lock.json` SHA-256，审查精确
+   Agent Browser版本与 x86_64容器镜像 digest，并同步更新 CloudFormation参数。
+7. 对目标 commit生成新的版本化 Patch set，并在隔离 checkout实际执行一次
    `verify → restore → apply → apply`，验证哈希、可回滚与幂等性。
 
 这一阶段的目的，是避免`hermes update`把旧源码 Patch自动 stash后盲目套到新版本，引发冲突
@@ -153,6 +156,8 @@ sha256sum \
 - [ ] OAuth认证仍有效，模型 Provider为`openai-codex`，没有 Bedrock/fallback调用。
 - [ ] CloudFormation Stack和实例状态正常，没有发生非预期替换。
 - [ ] 受管 Patch恢复器在实例重启后完成幂等验证；目标文件 SHA-256与 Patch set一致。
+- [ ] 新`install-manifest/identity.txt`与 Change Set中的 commit、安装器/锁文件哈希、浏览器
+  版本和容器 digest一致；Python与 Node依赖清单已保存到私有验收记录。
 - [ ] 将下面的验收记录追加到部署方的私有 deployment record。
 
 任何一项失败，升级状态都是“未完成”。安全关键项失败时保持 Gateway停止；其他项目可以回滚
@@ -167,6 +172,9 @@ Hermes upgrade acceptance
 - Stack / instance:
 - Old version / commit:
 - New version / commit:
+- Installer / uv.lock / package-lock SHA-256:
+- Agent Browser version / coding image digest:
+- Installed dependency manifest:
 - Snapshot / backup:
 - Frozen diff SHA-256:
 - P-001: retired / unexpectedly present
