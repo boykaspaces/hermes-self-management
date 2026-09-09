@@ -6,12 +6,18 @@ Active Task: None
 
 ## Current summary
 
-The TASK-010 candidate corrects the first-deployment Runtime Profile
+TASK-010 is accepted on `main` and corrects the first-deployment Runtime Profile
 parameter-name handoff: Quickstart now uses one exported SSM name for profile
 publication and private CloudFormation parameter-file generation, while a
 contract test prevents a second concrete example path from drifting
-independently. This source result becomes accepted project state when its
-proposal is merged.
+independently.
+
+The TASK-011 candidate aligns the temporary minimal-host deployer policy with
+the public first-deployment workflow. It covers exact Runtime Profile access,
+separate template and runtime-bundle prefixes, route-table discovery, and the
+documented boundary between account bootstrap and the restricted deployment
+identity. Static and offline validation passed; restricted-identity AWS
+acceptance remains an operator-owned deployment check.
 
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
@@ -29,8 +35,9 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-010 proposal before starting the separate
-deployer-IAM remediation Task. No primary active Task is selected here.
+Review and accept the bounded TASK-011 proposal before starting the separate
+post-Change-Set onboarding remediation Task. No primary active Task is selected
+here.
 
 ## Active constraints
 

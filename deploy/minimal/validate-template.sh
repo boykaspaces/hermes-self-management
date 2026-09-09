@@ -65,6 +65,8 @@ ruby -rjson -e '
     "${AWS_REGION}" => "us-east-1",
     "${ARTIFACT_BUCKET}" => "example-artifact-bucket",
     "${TEMPLATE_PREFIX}" => "hermes-self-management/cloudformation",
+    "${RUNTIME_ARTIFACT_PREFIX}" => "hermes-self-management/runtime",
+    "${RUNTIME_PROFILE_PARAMETER_NAME}" => "/example-hermes/runtime/profile",
     "${HERMES_STACK_NAME}" => "example-hermes",
     "${HERMES_ROLE_PREFIX}" => "example-hermes-",
     "${HERMES_INSTANCE_ID}" => "i-0123456789abcdef0",

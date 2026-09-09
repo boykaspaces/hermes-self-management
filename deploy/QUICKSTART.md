@@ -23,6 +23,21 @@ export AWS_REGION=us-west-2
 aws sts get-caller-identity
 ```
 
+Use separate reviewed identities for distinct deployment phases:
+
+| Phase | Required identity boundary |
+|---|---|
+| Account discovery and optional bootstrap | An account-bootstrap identity allowed to read VPC, subnet, route-table, and AMI metadata and, when needed, create the dedicated network and artifact-bucket Stacks. The minimal-host deployer policy does not create these prerequisites. |
+| Optional retained Secret container | The separate deployer policy under `deploy/hermes-runtime-secrets/policies/`; populate its value with a credential operator, not the deployer. |
+| Profile and artifact publication plus host Stack | The temporary rendered `deploy/minimal/policies/deployer-policy.json.tmpl`, after the artifact bucket and exact Runtime Profile name are known. |
+| Ongoing host access | The rendered minimal-host operator policy after removing temporary deployer access. |
+
+The temporary minimal-host policy requires separate template and runtime-bundle
+prefixes plus the exact Runtime Profile parameter name. Follow its
+[`policies/README.md`](./minimal/policies/README.md) rendering contract. Do not
+use an administrator identity as evidence that the restricted deployment path
+works.
+
 Create a private operator directory outside this clone. It may be a private
 repository, an encrypted local directory, or another controlled system:
 
