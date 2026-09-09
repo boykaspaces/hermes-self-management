@@ -19,6 +19,7 @@ INCLUDED_FILES = (
     f"patches/{PATCH_SET}/P-002-browser-private-url.patch",
     f"patches/{PATCH_SET}/P-003-podman-reuse.patch",
     f"patches/{PATCH_SET}/P-005-egress-allowlist-only.patch",
+    f"patches/{PATCH_SET}/P-006-preserve-workspace-for-nested-mounts.patch",
     f"patches/{PATCH_SET}/PATCHED_SHA256SUMS",
 )
 
