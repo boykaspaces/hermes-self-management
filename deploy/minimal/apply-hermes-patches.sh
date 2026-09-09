@@ -33,6 +33,7 @@ patches=(
   "$patch_set/P-002-browser-private-url.patch"
   "$patch_set/P-003-podman-reuse.patch"
   "$patch_set/P-005-egress-allowlist-only.patch"
+  "$patch_set/P-006-preserve-workspace-for-nested-mounts.patch"
 )
 
 verify_files() {

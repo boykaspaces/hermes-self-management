@@ -12,21 +12,27 @@
 | `P-002` | 活跃，安全关键 | Hermes源码 | `tools/browser_tool.py` | 让本机 Chromium同样执行私网与 IMDS URL检查 | 先检查新版本是否原生覆盖本机 backend；没有则移植旧补丁。私网、IMDS和跳转测试未通过时禁止启动生产 Gateway。 |
 | `P-003` | 活跃，资源关键 | Hermes源码与测试 | `tools/environments/docker.py`、`tests/tools/test_docker_environment.py` | 使用 Podman兼容的`{{.Labels}}`并解析 Podman/Docker两种 label格式，恢复跨进程容器复用 | 先检查上游是否已修复；没有则移植旧补丁。必须验证不同 Hermes进程复用同一容器且 egress标签不被错误复用。 |
 | `P-004` | 活跃 | 插件运行时包装 | `token_observer/runtime_instrumentation.py` | 给 Hook副本增加 Prompt组件大小，不修改模型请求 | 不恢复 Hermes源码。Gateway重启后由 CloudFormation管理的插件自动重新挂载；必须用一次真实调用确认组件数据重新出现。 |
+| `P-005` | 活跃，网络关键 | Hermes源码与测试 | `hermes_cli/proxy_cli.py`、`tests/test_iron_proxy_cli.py` | 支持没有 Provider Secret映射的显式 allowlist-only代理配置 | 先检查上游是否已有等价模式；没有则移植补丁，并验证空映射、冲突参数和默认拒绝行为。 |
+| `P-006` | Source候选，沙箱兼容关键 | Hermes源码与测试 | `tools/environments/docker.py`、`tests/tools/test_docker_environment.py` | 仅把目标恰好为`/workspace`的 volume视为替换父沙箱，嵌套挂载继续保留父沙箱 | 先检查上游是否已改为精确目标判断；没有则移植补丁，并验证持久与临时沙箱、嵌套目标、挂载选项及异常输入。是否已部署只查部署方记录。 |
 
 这里的“之前两个 Patch”是`P-001` Nova cache与`P-002` Browser私网防护；之后又增加了
-`P-003` Podman复用。`P-004`常被口头称为 Patch，但它不修改 Hermes checkout。
+`P-003` Podman复用。`P-004`常被口头称为 Patch，但它不修改 Hermes checkout。之后的
+`P-005`与`P-006`分别补充 allowlist-only代理配置和嵌套 workspace挂载兼容性。
 
 ## 当前受管 Patch set
 
-生产当前使用`patches/hermes-v0.21.0-29112bef/`，只接受完整 commit
-`29112bef099274229cadff79cdff7bf7b99c4b77`。其中包含`P-002`、`P-003`的精确 diff和应用后
-文件 SHA-256。通用入口为：
+本仓库当前受管 source Patch set为`patches/hermes-v0.21.0-29112bef/`，只接受完整 commit
+`29112bef099274229cadff79cdff7bf7b99c4b77`。其中包含`P-002`、`P-003`、`P-005`、
+`P-006`的精确 diff和应用后文件 SHA-256。通用入口为：
 
 ```bash
 deploy/minimal/apply-hermes-patches.sh apply
 deploy/minimal/apply-hermes-patches.sh verify
 deploy/minimal/apply-hermes-patches.sh restore
 ```
+
+这里的清单描述可交付 source，不证明某个运行环境已经发布或应用同一归档；当前 deployed
+revision、证据与回滚指针必须以部署方的私有记录为准。
 
 本地或其他安装目录可用`HERMES_REPO`和`HERMES_PATCH_SET`覆盖默认路径。脚本先核对 commit；
 随后只允许 clean apply、clean reverse-check（已应用）或 clean reverse（恢复）。任何部分应用、
@@ -89,7 +95,7 @@ sha256sum \
 
 1. 停止 Gateway，避免升级期间继续处理 Telegram和工具调用。
 2. 将冻结阶段保存的 diff与当前工作树再次比较；不一致时停止升级并人工审查。
-3. 恢复`P-001`、`P-002`、`P-003`涉及文件的上游版本，使这些受管文件在升级前保持 clean。
+3. 恢复`P-002`、`P-003`、`P-005`、`P-006`涉及文件的上游版本，使这些受管文件在升级前保持 clean；`P-001`应保持退役。
 4. 再次检查`git status`；其他未知修改不得被顺手删除或混入补丁归档。
 5. 执行 Hermes官方升级流程，并记录新版本、commit和迁移输出。
 6. 从目标 commit重新计算`install.sh`、`uv.lock`和`package-lock.json` SHA-256，审查精确
@@ -131,6 +137,20 @@ sha256sum \
 - 如果 Hermes内部函数签名变化，Agent仍可运行，但细分指标会降级；此时升级不能标记为完成，
   需要移植 adapter或明确接受降级。
 
+### `P-005` Allowlist-only代理
+
+- 检查新版本是否能在不发现、读取或生成 Provider Secret映射时建立默认拒绝代理。
+- 上游已支持：记录对应 commit与负向测试，删除本地 Patch。
+- 上游未支持：移植`--allowlist-only`路径，并验证它拒绝 Secret轮换参数、允许空映射且
+  保留显式 host allowlist。
+
+### `P-006` 嵌套 Workspace挂载
+
+- 检查用户 volume的容器目标是否按字段解析，而不是用`:/workspace`子串判断。
+- 上游已修复：记录对应 commit与持久/临时沙箱测试，删除本地 Patch。
+- 上游未修复：移植精确目标解析与回归测试。目标恰好为`/workspace`时不得产生重复父
+  挂载；`/workspace/...`嵌套目标和 source路径中的相似文本不得关闭父沙箱。
+
 ### 受管恢复器发布顺序
 
 1. 先把新 Patch set和目标 commit同步进 CloudFormation Metadata并运行模板校验。
@@ -152,6 +172,10 @@ sha256sum \
   `network=none`、挂载和 egress标签仍正确；容器数量不随调用线性增长。
 - [ ] `P-004`：真实 Agent执行成功；Viewer逐 Loop出现
   `base_system/context/skills/memory`等组件，Tool/MCP次数能归属到正确 Loop。
+- [ ] `P-005`：allowlist-only配置不读取 Provider Secret映射，空映射可启动且非 allowlist
+  目标保持拒绝。
+- [ ] `P-006`：精确`/workspace`替换不重复挂载；嵌套`/workspace/...`在持久和临时
+  模式都保留父沙箱。
 - [ ] Gateway、Dashboard、Telegram、Viewer均健康。
 - [ ] OAuth认证仍有效，模型 Provider为`openai-codex`，没有 Bedrock/fallback调用。
 - [ ] CloudFormation Stack和实例状态正常，没有发生非预期替换。
@@ -181,9 +205,13 @@ Hermes upgrade acceptance
 - P-002: upstream-fixed(commit) / locally-ported / failed
 - P-003: upstream-fixed(commit) / locally-ported / failed
 - P-004: auto-restored / adapter-ported / degraded / failed
+- P-005: upstream-fixed(commit) / locally-ported / failed
+- P-006: upstream-fixed(commit) / locally-ported / failed
 - Browser security tests:
 - Podman reuse test:
 - Token Observer loop test:
+- Allowlist-only proxy test:
+- Nested workspace mount test:
 - Gateway / Dashboard / Telegram / Viewer:
 - Provider / fallback / IAM boundary:
 - CloudFormation replacement check:

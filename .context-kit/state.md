@@ -34,10 +34,17 @@ upstream dependency locks, Agent Browser package, and coding-container image,
 then records the software versions actually installed for troubleshooting and
 rollback.
 
-The TASK-015 candidate adds a status-aware first-deployment recovery path with
+TASK-015 is accepted on `main` and adds a status-aware first-deployment recovery path with
 preserved failure evidence, bounded Stack retry rules, and symptom-specific
 diagnostics for CloudFormation, SSM, Runtime Profile, OAuth, and Dashboard
 failures.
+
+TASK-016's bounded P-006 candidate is complete: exact destination
+classification preserves the ordinary parent sandbox for nested
+`/workspace/...` volumes, while an exact parent replacement retains existing
+behavior. Review and accept the proposal before the private integration
+repository advances its source lock. Structured Context workspace
+configuration and live deployment remain separate later Tasks.
 
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
@@ -55,9 +62,9 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-015 proposal. Its acceptance completes the
-six source-and-documentation findings from the public first-deployment review;
-live AWS acceptance remains consumer-owned deployment evidence.
+Review and accept the bounded TASK-016 proposal before its exact revision is
+accepted by the private integration repository. No primary active Task is
+selected here.
 
 ## Active constraints
 

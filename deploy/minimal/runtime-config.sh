@@ -50,6 +50,7 @@ required = {
     "patches/hermes-v0.21.0-29112bef/P-002-browser-private-url.patch",
     "patches/hermes-v0.21.0-29112bef/P-003-podman-reuse.patch",
     "patches/hermes-v0.21.0-29112bef/P-005-egress-allowlist-only.patch",
+    "patches/hermes-v0.21.0-29112bef/P-006-preserve-workspace-for-nested-mounts.patch",
     "patches/hermes-v0.21.0-29112bef/PATCHED_SHA256SUMS",
 }
 try:

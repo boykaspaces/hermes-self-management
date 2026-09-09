@@ -1,0 +1,110 @@
+diff --git a/tests/tools/test_docker_environment.py b/tests/tools/test_docker_environment.py
+index 61025cfa88..134d4bfc18 100644
+--- a/tests/tools/test_docker_environment.py
++++ b/tests/tools/test_docker_environment.py
+@@ -709,1 +709,74 @@ def _bind_mount_specs(run_args):
++@pytest.mark.parametrize(
++    ("spec", "expected"),
++    [
++        ("/host:/workspace", "/workspace"),
++        ("/host:/workspace:ro", "/workspace"),
++        ("volume-name:/workspace:rw,z", "/workspace"),
++        ("/host:/workspace/projects/example:ro", "/workspace/projects/example"),
++        ("/host/workspace:/data:ro", "/data"),
++        (r"C:\host:/workspace", "/workspace"),
++        (r"C:\host:/workspace:ro", "/workspace"),
++        ("missing-delimiter", None),
++        (":/workspace", None),
++        ("/host::ro", None),
++        ("/host:/workspace:", None),
++    ],
++)
++def test_docker_volume_destination_parses_exact_container_path(spec, expected):
++    assert docker_env._docker_volume_destination(spec) == expected
++
++
++@pytest.mark.parametrize("persistent", [True, False])
++def test_nested_workspace_volumes_preserve_parent_sandbox(
++    monkeypatch, tmp_path, persistent
++):
++    """Narrow workspace children must not replace the sandbox root."""
++    monkeypatch.setenv("TERMINAL_SANDBOX_DIR", str(tmp_path))
++    monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
++    calls = _mock_subprocess_run(monkeypatch)
++    nested = [
++        "/registry:/workspace/.hermes:ro",
++        "/project:/workspace/projects/example:ro",
++        "/host/workspace:/data:ro",
++    ]
++
++    _make_dummy_env(volumes=nested, persistent_filesystem=persistent)
++
++    run_args = _run_args_from_calls(calls)
++    specs = _bind_mount_specs(run_args)
++    assert set(nested).issubset(specs)
++    if persistent:
++        assert sum(spec.endswith(":/workspace") for spec in specs) == 1
++    else:
++        assert "/workspace:rw,exec,size=10g" in run_args
++
++
++@pytest.mark.parametrize(
++    "replacement",
++    [
++        "/replacement:/workspace",
++        "/replacement:/workspace:ro",
++        "named-volume:/workspace:rw,z",
++    ],
++)
++@pytest.mark.parametrize("persistent", [True, False])
++def test_exact_workspace_volume_replaces_parent_sandbox(
++    monkeypatch, tmp_path, replacement, persistent
++):
++    """An explicit root replacement retains the existing no-duplicate rule."""
++    monkeypatch.setenv("TERMINAL_SANDBOX_DIR", str(tmp_path))
++    monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
++    calls = _mock_subprocess_run(monkeypatch)
++
++    _make_dummy_env(volumes=[replacement], persistent_filesystem=persistent)
++
++    run_args = _run_args_from_calls(calls)
++    specs = _bind_mount_specs(run_args)
++    assert replacement in specs
++    assert not any(
++        spec != replacement and spec.endswith(":/workspace") for spec in specs
++    )
++    assert "/workspace:rw,exec,size=10g" not in run_args
++
++
+ def test_persistent_bind_mounts_survive_a_session_key_task_id(monkeypatch, tmp_path):
+diff --git a/tools/environments/docker.py b/tools/environments/docker.py
+index 469221c91d..6552762d4c 100644
+--- a/tools/environments/docker.py
++++ b/tools/environments/docker.py
+@@ -49,1 +49,20 @@ _EGRESS_LABEL_KEY = "hermes-egress"
++def _docker_volume_destination(volume: str) -> str | None:
++    """Return the container path from a Docker ``-v`` specification.
++
++    Docker volume strings are ``source:destination[:options]``. A Windows
++    drive prefix adds one more colon to the source, so use the final absolute
++    path when it is present instead of assuming a fixed number of fields.
++    Empty fields are malformed and must not acquire workspace-replacement
++    semantics before Docker rejects the full specification.
++    """
++    fields = volume.rsplit(":", 2)
++    if len(fields) < 2 or any(not field for field in fields):
++        return None
++    if len(fields) == 2:
++        return fields[1]
++    if fields[2].startswith("/"):
++        return fields[2]
++    return fields[1]
++
++
+ def _normalize_forward_env_names(forward_env: list[str] | None) -> list[str]:
+@@ -1028,4 +1047,4 @@ class DockerEnvironment(BaseEnvironment):
+             if ":" in vol:
+                 volume_args.extend(["-v", vol])
+-                if ":/workspace" in vol:
++                if _docker_volume_destination(vol) == "/workspace":
+                     workspace_explicitly_mounted = True
