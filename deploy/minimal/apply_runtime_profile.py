@@ -44,6 +44,63 @@ BLOCKED_WEBSITE_DOMAINS = [
     "*.lan",
     "*.internal",
 ]
+CONTEXT_REGISTRY_DESTINATION = "/workspace/.hermes"
+CONTEXT_PROJECTS_DESTINATION = "/workspace/projects"
+CONTEXT_WORKSPACE_DESTINATIONS = {
+    CONTEXT_REGISTRY_DESTINATION,
+    CONTEXT_PROJECTS_DESTINATION,
+}
+CREDENTIAL_DESTINATION = "/run/hermes/credentials"
+
+
+def _docker_volume_destination(volume: object) -> str | None:
+    """Return the container path from a Docker source:destination[:options]."""
+    if not isinstance(volume, str):
+        return None
+    fields = volume.rsplit(":", 2)
+    if len(fields) < 2 or any(not field for field in fields):
+        return None
+    if len(fields) == 2:
+        return fields[1]
+    if fields[2].startswith("/"):
+        return fields[2]
+    return fields[1]
+
+
+def _require_owned_real_directory(path: Path, name: str) -> None:
+    try:
+        resolved = path.resolve(strict=True)
+        status = path.stat()
+    except OSError as error:
+        raise ValueError(f"{name} must be an existing directory") from error
+    if resolved != path or path.is_symlink():
+        raise ValueError(f"{name} must not contain symlinks or aliases")
+    if not path.is_dir():
+        raise ValueError(f"{name} must be a directory")
+    if status.st_uid != os.geteuid():
+        raise ValueError(f"{name} must be owned by the runtime user")
+
+
+def _context_workspace_volumes(profile: dict[str, object]) -> list[str]:
+    if profile["schema_version"] == 1:
+        return []
+    context_workspace = profile["context_workspace"]
+    if not context_workspace["enabled"]:
+        return []
+
+    host_root = Path(context_workspace["host_root"])
+    registry = host_root / ".hermes"
+    projects = host_root / "projects"
+    _require_owned_real_directory(host_root, "context_workspace.host_root")
+    _require_owned_real_directory(registry, "context_workspace registry")
+    _require_owned_real_directory(projects, "context_workspace projects")
+    project_mode = (
+        "ro" if context_workspace["project_access"] == "read-only" else "rw"
+    )
+    return [
+        f"{registry}:{CONTEXT_REGISTRY_DESTINATION}:ro",
+        f"{projects}:{CONTEXT_PROJECTS_DESTINATION}:{project_mode}",
+    ]
 
 
 def apply_profile(
@@ -98,11 +155,18 @@ def apply_profile(
             "docker_extra_args": [],
         }
     )
+    existing_volumes = terminal.get("docker_volumes", [])
+    if not isinstance(existing_volumes, list):
+        existing_volumes = []
+    owned_destinations = {CREDENTIAL_DESTINATION}
+    if profile["schema_version"] == 2:
+        owned_destinations.update(CONTEXT_WORKSPACE_DESTINATIONS)
     terminal["docker_volumes"] = [
         item
-        for item in terminal.get("docker_volumes", [])
-        if not str(item).split(":", 1)[-1].startswith("/run/hermes/credentials")
+        for item in existing_volumes
+        if _docker_volume_destination(item) not in owned_destinations
     ]
+    terminal["docker_volumes"].extend(_context_workspace_volumes(profile))
     if not git_coding_enabled:
         terminal.pop("docker_image", None)
         config.setdefault("proxy", {})["enabled"] = False

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -17,7 +18,7 @@ HOST_RE = re.compile(
     r"[A-Za-z]{2,63}$"
 )
 
-EXPECTED_KEYS = {
+EXPECTED_KEYS_V1 = {
     "schema_version",
     "model",
     "telegram",
@@ -30,6 +31,8 @@ EXPECTED_KEYS = {
     "skills",
     "proxy",
 }
+EXPECTED_KEYS_V2 = EXPECTED_KEYS_V1 | {"context_workspace"}
+CONTEXT_WORKSPACE_KEYS = {"enabled", "host_root", "project_access"}
 
 
 def require_object(value: object, name: str, keys: set[str]) -> dict[str, object]:
@@ -68,10 +71,47 @@ def require_number(
     return value
 
 
+def require_host_root(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("context_workspace.host_root must be a string")
+    if not value.startswith("/") or value.startswith("//") or value == "/":
+        raise ValueError(
+            "context_workspace.host_root must be an absolute non-root POSIX path"
+        )
+    if (
+        value != posixpath.normpath(value)
+        or ":" in value
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        raise ValueError(
+            "context_workspace.host_root must be normalized and mount-safe"
+        )
+    return value
+
+
 def validate_profile(profile: object) -> dict[str, object]:
-    root = require_object(profile, "profile", EXPECTED_KEYS)
-    if root["schema_version"] != 1:
-        raise ValueError("schema_version must be 1")
+    if not isinstance(profile, dict):
+        raise ValueError("profile must be an object")
+    schema_version = profile.get("schema_version")
+    if isinstance(schema_version, bool):
+        raise ValueError("schema_version must be 1 or 2")
+    if schema_version == 1:
+        root = require_object(profile, "profile", EXPECTED_KEYS_V1)
+    elif schema_version == 2:
+        root = require_object(profile, "profile", EXPECTED_KEYS_V2)
+    else:
+        raise ValueError("schema_version must be 1 or 2")
+
+    if schema_version == 2:
+        context_workspace = require_object(
+            root["context_workspace"],
+            "context_workspace",
+            CONTEXT_WORKSPACE_KEYS,
+        )
+        require_bool(context_workspace["enabled"], "context_workspace.enabled")
+        require_host_root(context_workspace["host_root"])
+        if context_workspace["project_access"] not in {"read-only", "read-write"}:
+            raise ValueError("context_workspace.project_access is invalid")
 
     model = require_object(root["model"], "model", {"default"})
     if not isinstance(model["default"], str) or not MODEL_RE.fullmatch(model["default"]):
