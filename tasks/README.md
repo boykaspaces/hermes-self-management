@@ -16,6 +16,7 @@ None.
 
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
+| [`TASK-011`](./TASK-011.md) | Completed | Align deployer IAM with first deployment | Reviewing restricted-identity deployment permissions |
 | [`TASK-010`](./TASK-010.md) | Completed | Fix Runtime Profile parameter handoff | Reviewing the first-deployment SSM parameter-name contract |
 | [`TASK-009`](./TASK-009.md) | Completed | Pilot advisory delivery governance adoption | Auditing Context Kit v2 migration or the governance adoption pilot |
 | [`TASK-008`](./TASK-008.md) | Completed | Add a public AWS bootstrap path | Auditing the consumer-neutral clone-to-Change-Set deployment experience |

@@ -43,6 +43,7 @@
         "ec2:DescribeInstanceAttribute",
         "ec2:DescribeInstances",
         "ec2:DescribeInstanceStatus",
+        "ec2:DescribeRouteTables",
         "ec2:DescribeSecurityGroups",
         "ec2:DescribeSnapshots",
         "ec2:DescribeSubnets",
@@ -51,7 +52,6 @@
         "ec2:DescribeVpcs",
         "ssm:DescribeInstanceInformation",
         "ssm:GetConnectionStatus",
-        "ssm:GetParameter",
         "ssm:DescribeSessions",
         "bedrock:ListFoundationModels",
         "bedrock:ListInferenceProfiles",
@@ -65,28 +65,37 @@
       }
     },
     {
-      "Sid": "ReadHermesTemplateArtifactBucket",
+      "Sid": "ReadHermesArtifactBucketLocation",
       "Effect": "Allow",
-      "Action": [
-        "s3:GetBucketLocation",
-        "s3:ListBucket"
-      ],
+      "Action": "s3:GetBucketLocation",
+      "Resource": "arn:aws:s3:::${ARTIFACT_BUCKET}"
+    },
+    {
+      "Sid": "ListOnlyHermesArtifactPrefixes",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
       "Resource": "arn:aws:s3:::${ARTIFACT_BUCKET}",
       "Condition": {
         "StringLike": {
-          "s3:prefix": "${TEMPLATE_PREFIX}/*"
+          "s3:prefix": [
+            "${TEMPLATE_PREFIX}/*",
+            "${RUNTIME_ARTIFACT_PREFIX}/*"
+          ]
         }
       }
     },
     {
-      "Sid": "ManageHermesTemplateArtifacts",
+      "Sid": "ManageOnlyHermesDeploymentArtifacts",
       "Effect": "Allow",
       "Action": [
         "s3:GetObject",
         "s3:GetObjectVersion",
         "s3:PutObject"
       ],
-      "Resource": "arn:aws:s3:::${ARTIFACT_BUCKET}/${TEMPLATE_PREFIX}/*"
+      "Resource": [
+        "arn:aws:s3:::${ARTIFACT_BUCKET}/${TEMPLATE_PREFIX}/*",
+        "arn:aws:s3:::${ARTIFACT_BUCKET}/${RUNTIME_ARTIFACT_PREFIX}/*"
+      ]
     },
     {
       "Sid": "ManageEc2ForMinimalDeploymentInTargetRegion",
@@ -148,15 +157,13 @@
       }
     },
     {
-      "Sid": "ManageOnlyHermesRuntimeStateParameters",
+      "Sid": "ManageOnlyConfiguredRuntimeProfile",
       "Effect": "Allow",
       "Action": [
-        "ssm:PutParameter",
-        "ssm:DeleteParameter",
-        "ssm:AddTagsToResource",
-        "ssm:RemoveTagsFromResource"
+        "ssm:GetParameter",
+        "ssm:PutParameter"
       ],
-      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter/${HERMES_STACK_NAME}/runtime/telegram-enabled"
+      "Resource": "arn:aws:ssm:${AWS_REGION}:${AWS_ACCOUNT_ID}:parameter${RUNTIME_PROFILE_PARAMETER_NAME}"
     },
     {
       "Sid": "ManageOnlyHermesIamRoles",
