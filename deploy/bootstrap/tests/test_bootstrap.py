@@ -10,9 +10,151 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 BOOTSTRAP = ROOT / "deploy" / "bootstrap"
 MINIMAL = ROOT / "deploy" / "minimal"
+PREFLIGHT = ROOT / "deploy" / "preflight.sh"
 
 
 class BootstrapContractTest(unittest.TestCase):
+    def _preflight_environment(self, temporary_path, include_plugin=True):
+        versions = {
+            "jq": "jq-1.6",
+            "python3": "Python 3.9.0",
+            "ruby": "ruby 2.6.0p0 (example revision)",
+            "git": "git version 2.20.0",
+            "rg": "ripgrep 12.0.0",
+            "shasum": "6.02",
+        }
+        if include_plugin:
+            versions["session-manager-plugin"] = "1.2.0.0"
+
+        for name, version in versions.items():
+            executable = temporary_path / name
+            executable.write_text(
+                f"#!/bin/sh\nprintf '%s\\n' '{version}'\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o700)
+
+        capture = temporary_path / "aws-arguments.txt"
+        fake_aws = temporary_path / "aws"
+        fake_aws.write_text(
+            "#!/bin/sh\n"
+            "if [ \"${1:-}\" = sts ]; then\n"
+            "  printf '%s\\n' \"$@\" >\"$AWS_CAPTURE\"\n"
+            "  printf '%s\\n' 000000000000\n"
+            "else\n"
+            "  printf '%s\\n' 'aws-cli/2.15.0 Python/3.11.0 Linux/6.1'\n"
+            "fi\n",
+            encoding="utf-8",
+        )
+        fake_aws.chmod(0o700)
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "AWS_CAPTURE": str(capture),
+                "AWS_REGION": "us-west-2",
+                "PATH": f"{temporary_path}:/usr/bin:/bin",
+            }
+        )
+        return environment, capture
+
+    def test_preflight_checks_versions_and_only_reads_aws_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = pathlib.Path(temporary)
+            environment, capture = self._preflight_environment(temporary_path)
+            completed = subprocess.run(
+                [str(PREFLIGHT), "--aws"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            self.assertIn("session-manager-plugin=1.2.0.0", completed.stdout)
+            self.assertIn("preflight-ok version=1", completed.stdout)
+            arguments = capture.read_text(encoding="utf-8")
+            self.assertIn("get-caller-identity", arguments)
+            self.assertNotRegex(
+                arguments,
+                r"(?m)^(?:create|delete|deploy|execute|put|start|stop|update)(?:-|$)",
+            )
+
+    def test_preflight_fails_when_session_manager_plugin_is_missing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            environment, _capture = self._preflight_environment(
+                pathlib.Path(temporary), include_plugin=False
+            )
+            completed = subprocess.run(
+                [str(PREFLIGHT)],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn(
+                "preflight-error: session-manager-plugin is required",
+                completed.stderr,
+            )
+
+    def test_preflight_rejects_an_unsupported_tool_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = pathlib.Path(temporary)
+            environment, _capture = self._preflight_environment(temporary_path)
+            old_python = temporary_path / "python3"
+            old_python.write_text(
+                "#!/bin/sh\nprintf '%s\\n' 'Python 3.8.0'\n",
+                encoding="utf-8",
+            )
+            old_python.chmod(0o700)
+            completed = subprocess.run(
+                [str(PREFLIGHT)],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn(
+                "preflight-error: Python 3.9 or newer is required",
+                completed.stderr,
+            )
+
+    def test_quickstart_declares_supported_defaults_before_resources(self):
+        quickstart = (ROOT / "deploy" / "QUICKSTART.md").read_text(encoding="utf-8")
+        self.assertLess(
+            quickstart.index("## 0. Check suitability and default capabilities"),
+            quickstart.index("## 1. Prerequisites and private workspace"),
+        )
+        for expected in (
+            "AWS Session Manager plugin",
+            "Ubuntu 24.04 LTS x86_64",
+            "openai-codex",
+            "cannot clone a remote repository or install packages",
+            "browser.backend=off",
+            "preflight-ok version=1",
+        ):
+            self.assertIn(expected, quickstart)
+
+        profile = json.loads(
+            (MINIMAL / "runtime-profile.example.json").read_text(encoding="utf-8")
+        )
+        parameters = json.loads(
+            (MINIMAL / "parameters.example.json").read_text(encoding="utf-8")
+        )
+        values = {item["ParameterKey"]: item["ParameterValue"] for item in parameters}
+        apply_source = (MINIMAL / "apply_runtime_profile.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertFalse(profile["telegram"]["enabled"])
+        self.assertEqual(values["GitCodingEnabled"], "false")
+        self.assertIn('"backend": "off"', apply_source)
+        self.assertIn('"docker_network": False', apply_source)
+        self.assertIn('"provider": "openai-codex"', apply_source)
+        self.assertIn('config.pop("fallback_model", None)', apply_source)
+
     def test_parameter_example_is_non_secret_and_complete(self):
         parameters = json.loads(
             (MINIMAL / "parameters.example.json").read_text(encoding="utf-8")
