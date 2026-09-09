@@ -2,9 +2,7 @@
 
 ## In Progress
 
-| ID / File | Status | Title | Read when |
-|---|---|---|---|
-| [`TASK-017`](./TASK-017.md) | In Progress | Repair the TASK-016 parent link | Reviewing the integration metadata failure or bounded correction |
+None.
 
 ## Blocked
 
@@ -18,6 +16,7 @@ None.
 
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
+| [`TASK-017`](./TASK-017.md) | Completed | Repair the TASK-016 parent link | Reviewing the integration metadata failure or bounded correction |
 | [`TASK-016`](./TASK-016.md) | Completed | Preserve the sandbox with nested workspace mounts | Reviewing P-006, its regression tests, or source-only delivery boundary |
 | [`TASK-015`](./TASK-015.md) | Completed | Add first-deployment failure recovery | Diagnosing or retrying an incomplete first deployment |
 | [`TASK-014`](./TASK-014.md) | Completed | Pin first-boot installation inputs | Reviewing installer, dependency-lock, browser, or container-image reproducibility |

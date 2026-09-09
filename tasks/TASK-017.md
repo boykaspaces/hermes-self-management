@@ -1,9 +1,8 @@
 # TASK-017: Repair the TASK-016 Parent Link
 
-Status: In Progress
+Status: Completed
 Type: Component
 Governance: Required
-Delivery Stage: Plan
 Priority: High
 Parent System Task: personal-hermes-agent:TASK-025
 
@@ -63,11 +62,16 @@ Ledger: `tasks/evidence/TASK-017/review.md`
   `c06f3d401a8ec0f5e1487e83c16016ac91049956`.
 - Reduced the repair to the TASK-016 parent-field representation plus required
   project-context routing.
+- Froze the bounded repair contract at
+  `3e8f71adb8b8868129c8caed894e19bff0ef3640`.
+- Replaced only TASK-016's Markdown-delimited parent value with the canonical
+  bare System Task identity.
+- Passed the public native suite, Context Kit project validation, and reviewed
+  multi-repository repository validation.
 
 ## Remaining
 
-- Freeze the contract, apply the metadata correction, and validate the exact
-  component relationship.
+None.
 
 ## Blockers
 
@@ -81,5 +85,11 @@ None.
 
 ## Next Step
 
-Freeze this bounded repair contract, then remove only the Markdown delimiters
-from TASK-016's canonical parent field and rerun the declared validation.
+None for TASK-017. Review and accept this metadata-only proposal before the
+private integration repository advances its source lock.
+
+## Result
+
+TASK-016 now exposes the canonical parent System Task value in the exact
+machine-readable form required for cross-repository relationship validation,
+without changing P-006 or any runtime/deployment artifact.

@@ -4,7 +4,7 @@ Status: Completed
 Type: Component
 Governance: Required
 Priority: High
-Parent System Task: `personal-hermes-agent:TASK-025`
+Parent System Task: personal-hermes-agent:TASK-025
 
 ## Goal
 
@@ -144,6 +144,5 @@ change any deployment.
 
 ## Next Step
 
-Review and accept this bounded Component proposal. After merge, the parent
-System Task may accept the exact revision; structured Context workspace
-configuration and live deployment remain separate later Tasks.
+None for TASK-016. PR #13 accepted the P-006 implementation; TASK-017 owns the
+separate parent-link metadata correction needed by private integration.

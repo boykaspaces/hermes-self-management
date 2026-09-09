@@ -2,16 +2,14 @@
 
 Project: hermes-self-management
 Status: Active
-Active Task: TASK-017
+Active Task: None
 
 ## Current summary
 
-TASK-017 is active after private integration validation found that TASK-016's
-`Parent System Task` value contains Markdown delimiters instead of the bare
-canonical Task identity required by the reviewed multi-repository validator.
-The correction is limited to that metadata field and project-context routing;
-P-006 implementation, Runtime Profile, deployment, and private source-lock
-state remain unchanged.
+TASK-017's bounded candidate corrects TASK-016's `Parent System Task` field to
+the bare canonical identity required by the reviewed multi-repository
+validator. The correction changes no P-006 implementation, patch archive,
+Runtime Profile, deployment artifact, or private source lock.
 
 TASK-010 is accepted on `main` and corrects the first-deployment Runtime Profile
 parameter-name handoff: Quickstart now uses one exported SSM name for profile
@@ -69,8 +67,8 @@ deployment state unchanged.
 
 ## Primary focus
 
-Correct and validate the TASK-016 parent relationship, publish the bounded
-TASK-017 proposal, and wait for review before private source acceptance.
+Review and accept the bounded TASK-017 metadata proposal before private source
+acceptance. No primary active Task is selected here.
 
 ## Active constraints
 
