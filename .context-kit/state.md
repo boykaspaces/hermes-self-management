@@ -6,6 +6,15 @@ Active Task: None
 
 ## Current summary
 
+TASK-018's public source candidate is complete. Runtime Profile schema v1
+remains compatible, while v2 accepts one strict structured Context workspace
+object and derives only fixed read-only registry plus explicit read-only or
+read-write managed-project mounts. Existing directories must be canonical,
+non-symlink, and runtime-user owned. Focused profile, template, pinned P-006,
+complete repository, Context Kit, and parent System Task validations passed.
+No consumer profile was published or applied and no private source or
+deployment truth changed.
+
 TASK-017's bounded candidate corrects TASK-016's `Parent System Task` field to
 the bare canonical identity required by the reviewed multi-repository
 validator. The correction changes no P-006 implementation, patch archive,
@@ -67,8 +76,8 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-017 metadata proposal before private source
-acceptance. No primary active Task is selected here.
+Review and accept the bounded TASK-018 public source proposal before private
+source acceptance. No primary active Component Task is selected here.
 
 ## Active constraints
 

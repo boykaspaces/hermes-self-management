@@ -194,8 +194,29 @@ Copy `runtime-profile.example.json` into the consuming private operations
 repository and replace only non-secret values. The profile owns the model name,
 Telegram desired state and progress behavior, Personal Tools URL, credential
 profile ID, browser timeouts, Terminal resource limits, agent settings, Memory
-tuning, Skill/Memory write approval, and the reviewed coding proxy allowlist.
-The SSM Standard parameter limit is enforced at 4 KiB.
+tuning, Skill/Memory write approval, the reviewed coding proxy allowlist, and
+an optional structured Context workspace. The SSM Standard parameter limit is
+enforced at 4 KiB.
+
+Schema v1 remains accepted and has no Context workspace behavior. Schema v2
+requires `context_workspace` with `enabled`, an absolute normalized non-root
+POSIX `host_root`, and `project_access` set to `read-only` or `read-write`.
+When enabled, the adapter verifies that the root, `.hermes`, and `projects`
+paths already exist as real directories owned by the runtime user. It then
+derives only these mounts:
+
+```text
+<host_root>/.hermes:/workspace/.hermes:ro
+<host_root>/projects:/workspace/projects:<ro|rw>
+```
+
+The registry is always read-only. Project write access must be explicit. The
+adapter replaces existing entries only at those two fixed destinations,
+preserves unrelated mounts, and leaves the credential mount to the separate
+runtime-config step. It does not create directories, accept raw volume strings,
+or allow consumer-chosen container destinations. Keep `enabled` false until an
+operator has prepared and reviewed the host directories; publishing or
+applying the profile remains a consumer-controlled deployment action.
 
 The profile contains no tokens, passwords, private keys, OAuth values, or Secret
 values. Secret ARNs, Git-coding capability, artifact access, and network/IAM

@@ -119,7 +119,20 @@ rg -Fq 'profile["telegram"][' "$runtime_profile_apply"
 rg -Fq -- "--output json | jq -erj '.Parameter.Value'" "$template"
 rg -Fq 'config.setdefault("skills", {}).update(profile["skills"])' "$runtime_profile_apply"
 rg -Fq 'memory_profile["write_approval"]' "$runtime_profile_apply"
+rg -Fq 'CONTEXT_REGISTRY_DESTINATION = "/workspace/.hermes"' "$runtime_profile_apply"
+rg -Fq 'CONTEXT_PROJECTS_DESTINATION = "/workspace/projects"' "$runtime_profile_apply"
+rg -Fq '_require_owned_real_directory' "$runtime_profile_apply"
+rg -Fq 'context_workspace = require_object' "$runtime_profile_validator"
 rg -Fq 'profile["proxy"]["extra_allowed_hosts"]' "$runtime_config"
+
+jq -e '
+  .schema_version == 2 and
+  (.context_workspace | keys == ["enabled", "host_root", "project_access"]) and
+  (.context_workspace.enabled == false) and
+  (.context_workspace.project_access == "read-only") and
+  (has("docker_volumes") | not) and
+  (.context_workspace | has("destination") | not)
+' "$runtime_profile_example" >/dev/null
 
 if rg -n 'hermes config set|skills\.write_approval|memory\.write_approval|OpenAICodexModel|TelegramEnabled|PersonalToolsMCPURL|CredentialProfileId|TelegramDesiredStateParameter' "$user_data_file" "$template"; then
   echo "Mutable consumer configuration must not be embedded in User Data or CloudFormation parameters" >&2
