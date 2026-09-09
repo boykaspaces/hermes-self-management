@@ -33,6 +33,31 @@ class BootstrapContractTest(unittest.TestCase):
             any(re.search(r"token|password|private.?key|oauth", key, re.I) for key in values)
         )
 
+    def test_runtime_profile_parameter_name_has_one_quickstart_source(self):
+        parameters = json.loads(
+            (MINIMAL / "parameters.example.json").read_text(encoding="utf-8")
+        )
+        values = {item["ParameterKey"]: item["ParameterValue"] for item in parameters}
+        quickstart = (ROOT / "deploy" / "QUICKSTART.md").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            values["RuntimeProfileParameterName"],
+            "REPLACE_WITH_RUNTIME_PROFILE_PARAMETER_NAME",
+        )
+        self.assertRegex(
+            quickstart,
+            r"export HERMES_RUNTIME_PROFILE_PARAMETER=/[^\s]+/runtime/profile",
+        )
+        self.assertIn(
+            'HERMES_RUNTIME_PROFILE_PARAMETER="$HERMES_RUNTIME_PROFILE_PARAMETER"',
+            quickstart,
+        )
+        self.assertIn('--arg name "$HERMES_RUNTIME_PROFILE_PARAMETER"', quickstart)
+        self.assertIn(
+            '.ParameterKey == "RuntimeProfileParameterName"',
+            quickstart,
+        )
+
     def test_discovery_script_is_read_only(self):
         source = (BOOTSTRAP / "discover-environment.sh").read_text(encoding="utf-8")
         self.assertIn("get-caller-identity", source)

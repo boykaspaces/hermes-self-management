@@ -121,14 +121,18 @@ SSM Standard parameter size.
 Publish and byte-verify it:
 
 ```sh
+export HERMES_RUNTIME_PROFILE_PARAMETER=/my-hermes/runtime/profile
+
 AWS_REGION="$AWS_REGION" \
 HERMES_RUNTIME_PROFILE_FILE=../my-hermes-ops/runtime-profile.json \
-HERMES_RUNTIME_PROFILE_PARAMETER=/my-hermes/runtime/profile \
+HERMES_RUNTIME_PROFILE_PARAMETER="$HERMES_RUNTIME_PROFILE_PARAMETER" \
 ./deploy/minimal/publish-runtime-profile.sh
 ```
 
 The profile is an SSM `String`, not a Secret. Do not put tokens, passwords,
-private keys, or OAuth material in it.
+private keys, or OAuth material in it. Keep the exported parameter name for the
+private CloudFormation parameter file below; the publisher also prints it as
+`RuntimeProfileParameterName` for deployment evidence.
 
 ## 5. Create optional retained runtime credentials
 
@@ -197,12 +201,16 @@ the runtime-bundle digest before extraction.
 
 ## 7. Prepare private parameters and create a Change Set
 
-Copy the example outside this clone and replace every placeholder with a
-reviewed value or a publisher output:
+Create the private parameter file outside this clone. The `jq` step writes the
+same Runtime Profile parameter name used by the publisher instead of relying on
+a second concrete example path. Replace every remaining placeholder with a
+reviewed value or another publisher output:
 
 ```sh
-cp deploy/minimal/parameters.example.json \
-  ../my-hermes-ops/hermes-parameters.json
+jq --arg name "$HERMES_RUNTIME_PROFILE_PARAMETER" \
+  'map(if .ParameterKey == "RuntimeProfileParameterName" then .ParameterValue = $name else . end)' \
+  deploy/minimal/parameters.example.json \
+  > ../my-hermes-ops/hermes-parameters.json
 chmod 600 ../my-hermes-ops/hermes-parameters.json
 ```
 
