@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for path in PROJECT.md AGENTS.md .context-kit/manifest.json .context-kit/index.md .context-kit/state.md \
   .context-kit/checkpoints/README.md tasks/README.md tasks/current.md \
   docs/decisions/README.md deploy/QUICKSTART.md deploy/bootstrap/README.md \
-  deploy/preflight.sh \
+  deploy/preflight.sh deploy/minimal/FIRST_DEPLOYMENT_RECOVERY.md \
   deploy/bootstrap/artifacts-cloudformation.yaml deploy/bootstrap/network-cloudformation.yaml \
   deploy/bootstrap/discover-environment.sh deploy/bootstrap/validate-template.sh \
   deploy/minimal/parameters.example.json deploy/minimal/publish-runtime-profile.sh \

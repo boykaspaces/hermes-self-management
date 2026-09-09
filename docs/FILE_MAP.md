@@ -15,6 +15,7 @@ Status: Current index
 | `deploy/bootstrap/` | Optional discovery, network, and artifact-bucket bootstrap | Preparing first-deployment prerequisites |
 | `deploy/minimal/cloudformation.yaml` | Hermes host and bootstrap implementation | Changing runtime infrastructure |
 | `deploy/minimal/README.md` | Current host deployment and validation flow | Deploying or upgrading Hermes |
+| `deploy/minimal/FIRST_DEPLOYMENT_RECOVERY.md` | First-deployment evidence, diagnosis, cleanup gates, and retry paths | A first deployment or first conversation does not reach its success marker |
 | `deploy/minimal/HERMES_UPGRADE_RUNBOOK.md` | Version/patch migration and rollback gate | Changing Hermes revision |
 | `deploy/minimal/MODEL_PROVIDER_STRATEGY.md` | Subscription-first provider policy | Changing model authentication or fallback |
 | `deploy/minimal/patches/` | Version-specific upstream patch evidence | Porting or auditing a patch set |

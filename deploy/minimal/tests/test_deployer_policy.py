@@ -48,6 +48,16 @@ class DeployerPolicyTest(unittest.TestCase):
         self.assertTrue(required_actions.issubset(statement["Action"]))
         self.assertIn("ec2:DescribeRouteTables", required_actions)
 
+    def test_failed_boot_console_output_is_read_only(self):
+        statement = self.statements["ReadDeploymentDependenciesInTargetRegion"]
+        self.assertIn("ec2:GetConsoleOutput", statement["Action"])
+        self.assertEqual(statement["Effect"], "Allow")
+        self.assertEqual(statement["Resource"], "*")
+        self.assertEqual(
+            statement["Condition"]["StringEquals"]["aws:RequestedRegion"],
+            "us-east-1",
+        )
+
     def test_runtime_profile_access_is_exact_and_not_global(self):
         statement = self.statements["ManageOnlyConfiguredRuntimeProfile"]
         self.assertEqual(

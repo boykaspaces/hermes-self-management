@@ -58,6 +58,74 @@ class BootstrapContractTest(unittest.TestCase):
         )
         return environment, capture
 
+    def _run_change_set_helper(
+        self, temporary_path, stack_status, change_set_name="first-deployment-recovery-1"
+    ):
+        parameter_file = temporary_path / "parameters.json"
+        parameter_file.write_text(
+            json.dumps(
+                [
+                    {"ParameterKey": "VpcId", "ParameterValue": "vpc-00000000"},
+                    {
+                        "ParameterKey": "SubnetId",
+                        "ParameterValue": "subnet-00000000",
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
+        capture = temporary_path / "aws-arguments.txt"
+        fake_aws = temporary_path / "aws"
+        fake_aws.write_text(
+            "#!/bin/sh\n"
+            "if [ \"${1:-} ${2:-}\" = 'cloudformation describe-stacks' ]; then\n"
+            "  case \"$AWS_STACK_STATUS\" in\n"
+            "    DOES_NOT_EXIST)\n"
+            "      printf '%s\\n' 'ValidationError: Stack with id example-hermes does not exist' >&2\n"
+            "      exit 255\n"
+            "      ;;\n"
+            "    ACCESS_DENIED)\n"
+            "      printf '%s\\n' 'AccessDenied: not authorized' >&2\n"
+            "      exit 254\n"
+            "      ;;\n"
+            "    *) printf '%s\\n' \"$AWS_STACK_STATUS\" ;;\n"
+            "  esac\n"
+            "elif [ \"${1:-} ${2:-}\" = 'cloudformation create-change-set' ]; then\n"
+            "  printf '%s\\n' \"$@\" >\"$AWS_CAPTURE\"\n"
+            "  printf '%s\\n' 'arn:aws:cloudformation:us-west-2:000000000000:changeSet/example/00000000'\n"
+            "else\n"
+            "  printf '%s\\n' 'unexpected aws command' >&2\n"
+            "  exit 253\n"
+            "fi\n",
+            encoding="utf-8",
+        )
+        fake_aws.chmod(0o700)
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "AWS_CAPTURE": str(capture),
+                "AWS_STACK_STATUS": stack_status,
+                "AWS_REGION": "us-west-2",
+                "HERMES_STACK_NAME": "example-hermes",
+                "HERMES_TEMPLATE_URL": "https://example.invalid/template.yaml",
+                "HERMES_PARAMETER_FILE": str(parameter_file),
+                "PATH": f"{temporary_path}:{environment['PATH']}",
+            }
+        )
+        if change_set_name is not None:
+            environment["HERMES_CHANGE_SET_NAME"] = change_set_name
+        else:
+            environment.pop("HERMES_CHANGE_SET_NAME", None)
+        completed = subprocess.run(
+            [str(MINIMAL / "create-change-set.sh")],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        arguments = capture.read_text(encoding="utf-8") if capture.exists() else ""
+        return completed, arguments
+
     def test_preflight_checks_versions_and_only_reads_aws_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
             temporary_path = pathlib.Path(temporary)
@@ -282,6 +350,40 @@ class BootstrapContractTest(unittest.TestCase):
             template,
         )
 
+    def test_first_deployment_recovery_has_bounded_symptom_routes(self):
+        quickstart = (ROOT / "deploy" / "QUICKSTART.md").read_text(
+            encoding="utf-8"
+        )
+        recovery = (MINIMAL / "FIRST_DEPLOYMENT_RECOVERY.md").read_text(
+            encoding="utf-8"
+        )
+        helper = (MINIMAL / "create-change-set.sh").read_text(encoding="utf-8")
+
+        self.assertIn("FIRST_DEPLOYMENT_RECOVERY.md", quickstart)
+        self.assertIn("FailureResourcesPreserved=on-stack-failure-do-nothing", quickstart)
+        self.assertIn("--on-stack-failure DO_NOTHING", helper)
+        for marker in (
+            "## 2. Stack or first-boot failure",
+            "## 3. SSM does not connect",
+            "## 4. Runtime Profile cannot be read or applied",
+            "## 5. OAuth or model selection fails",
+            "## 6. Dashboard or port forwarding fails",
+            "describe-stack-events",
+            "/var/log/cloud-init-output.log",
+            "ec2 get-console-output",
+            "ssm get-connection-status",
+            "validate_runtime_profile.py",
+            "journalctl --user -u hermes-gateway.service",
+            "journalctl -u hermes-dashboard.service",
+            "FailureResourcesPreserved=execute-disable-rollback-required",
+            "wait stack-update-complete",
+            "wait stack-delete-complete",
+        ):
+            self.assertIn(marker, recovery)
+        self.assertIn("Do not manually rerun `/var/lib/cloud/instance/scripts/part-001`", recovery)
+        self.assertNotIn("authorize-security-group-ingress", recovery)
+        self.assertNotIn("--change-set-type CREATE", recovery)
+
     def test_discovery_script_is_read_only(self):
         source = (BOOTSTRAP / "discover-environment.sh").read_text(encoding="utf-8")
         self.assertIn("get-caller-identity", source)
@@ -299,56 +401,74 @@ class BootstrapContractTest(unittest.TestCase):
         source = (MINIMAL / "create-change-set.sh").read_text(encoding="utf-8")
         self.assertIn("create-change-set", source)
         self.assertNotIn("execute-change-set", source)
+        self.assertNotIn("delete-stack", source)
+        self.assertNotIn("rollback-stack", source)
         self.assertIn("inside the public clone", source)
 
     def test_change_set_helper_creates_review_only_request(self):
         with tempfile.TemporaryDirectory() as temporary:
-            temporary_path = pathlib.Path(temporary)
-            parameter_file = temporary_path / "parameters.json"
-            parameter_file.write_text(
-                json.dumps(
-                    [
-                        {"ParameterKey": "VpcId", "ParameterValue": "vpc-00000000"},
-                        {
-                            "ParameterKey": "SubnetId",
-                            "ParameterValue": "subnet-00000000",
-                        },
-                    ]
-                ),
-                encoding="utf-8",
+            completed, arguments = self._run_change_set_helper(
+                pathlib.Path(temporary), "DOES_NOT_EXIST"
             )
-            capture = temporary_path / "aws-arguments.txt"
-            fake_aws = temporary_path / "aws"
-            fake_aws.write_text(
-                "#!/bin/sh\nprintf '%s\\n' \"$@\" >\"$AWS_CAPTURE\"\n"
-                "printf '%s\\n' 'arn:aws:cloudformation:us-west-2:000000000000:changeSet/example/00000000'\n",
-                encoding="utf-8",
-            )
-            fake_aws.chmod(0o700)
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "AWS_CAPTURE": str(capture),
-                    "AWS_REGION": "us-west-2",
-                    "HERMES_STACK_NAME": "example-hermes",
-                    "HERMES_TEMPLATE_URL": "https://example.invalid/template.yaml",
-                    "HERMES_PARAMETER_FILE": str(parameter_file),
-                    "PATH": f"{temporary}:{environment['PATH']}",
-                }
-            )
-            completed = subprocess.run(
-                [str(MINIMAL / "create-change-set.sh")],
-                check=True,
-                capture_output=True,
-                text=True,
-                env=environment,
-            )
-            arguments = capture.read_text(encoding="utf-8")
+            self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertIn("create-change-set", arguments)
             self.assertIn("CREATE", arguments)
+            self.assertIn("--on-stack-failure", arguments)
+            self.assertIn("DO_NOTHING", arguments)
             self.assertIn("CAPABILITY_IAM", arguments)
             self.assertNotIn("execute-change-set", arguments)
+            self.assertIn("StackStatusBefore=DOES_NOT_EXIST", completed.stdout)
+            self.assertIn("ChangeSetType=CREATE", completed.stdout)
+            self.assertIn("Waiter=stack-create-complete", completed.stdout)
             self.assertIn("does not execute", completed.stdout)
+
+    def test_change_set_helper_prepares_recovery_update_for_preserved_failure(self):
+        for stack_status in ("CREATE_FAILED", "UPDATE_FAILED"):
+            with self.subTest(stack_status=stack_status):
+                with tempfile.TemporaryDirectory() as temporary:
+                    completed, arguments = self._run_change_set_helper(
+                        pathlib.Path(temporary), stack_status
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertIn("create-change-set", arguments)
+                    self.assertIn("UPDATE", arguments)
+                    self.assertNotIn("--on-stack-failure", arguments)
+                    self.assertIn(
+                        f"StackStatusBefore={stack_status}", completed.stdout
+                    )
+                    self.assertIn("ChangeSetType=UPDATE", completed.stdout)
+                    self.assertIn(
+                        "FailureResourcesPreserved="
+                        "execute-disable-rollback-required",
+                        completed.stdout,
+                    )
+                    self.assertIn("Waiter=stack-update-complete", completed.stdout)
+
+    def test_change_set_helper_requires_a_new_name_for_recovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            completed, arguments = self._run_change_set_helper(
+                pathlib.Path(temporary), "CREATE_FAILED", change_set_name=None
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertEqual(arguments, "")
+            self.assertIn("new recovery-specific name", completed.stderr)
+
+    def test_change_set_helper_rejects_unsafe_stack_states_and_aws_errors(self):
+        for stack_status in (
+            "CREATE_IN_PROGRESS",
+            "ROLLBACK_COMPLETE",
+            "UPDATE_ROLLBACK_FAILED",
+            "CREATE_COMPLETE",
+            "ACCESS_DENIED",
+        ):
+            with self.subTest(stack_status=stack_status):
+                with tempfile.TemporaryDirectory() as temporary:
+                    completed, arguments = self._run_change_set_helper(
+                        pathlib.Path(temporary), stack_status
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertEqual(arguments, "")
+                    self.assertIn("no Change Set was created", completed.stderr)
 
     def test_runtime_profile_check_uses_external_file(self):
         with tempfile.TemporaryDirectory() as temporary:
