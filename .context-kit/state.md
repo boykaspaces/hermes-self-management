@@ -2,7 +2,7 @@
 
 Project: hermes-self-management
 Status: Active
-Active Task: TASK-016
+Active Task: None
 
 ## Current summary
 
@@ -39,12 +39,12 @@ preserved failure evidence, bounded Stack retry rules, and symptom-specific
 diagnostics for CloudFormation, SSM, Runtime Profile, OAuth, and Dashboard
 failures.
 
-TASK-016 is active under parent System Task
-`personal-hermes-agent:TASK-025`. It is limited to P-006: exact Docker volume
-destination classification must preserve the ordinary parent sandbox for
-nested `/workspace/...` mounts. Structured Context workspace configuration,
-private source acceptance, and live deployment remain separate later
-boundaries.
+TASK-016's bounded P-006 candidate is complete: exact destination
+classification preserves the ordinary parent sandbox for nested
+`/workspace/...` volumes, while an exact parent replacement retains existing
+behavior. Review and accept the proposal before the private integration
+repository advances its source lock. Structured Context workspace
+configuration and live deployment remain separate later Tasks.
 
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
@@ -62,8 +62,9 @@ deployment state unchanged.
 
 ## Primary focus
 
-Implement and publish only TASK-016's P-006 compatibility patch, then wait for
-user review and merge. Do not add Runtime Profile fields or deploy the patch.
+Review and accept the bounded TASK-016 proposal before its exact revision is
+accepted by the private integration repository. No primary active Task is
+selected here.
 
 ## Active constraints
 

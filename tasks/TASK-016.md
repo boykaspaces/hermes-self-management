@@ -1,9 +1,8 @@
 # TASK-016: Preserve the Sandbox with Nested Workspace Mounts
 
-Status: In Progress
+Status: Completed
 Type: Component
 Governance: Required
-Delivery Stage: Plan
 Priority: High
 Parent System Task: `personal-hermes-agent:TASK-025`
 
@@ -97,13 +96,27 @@ Ledger: `tasks/evidence/TASK-016/review.md`
   destination classification defect.
 - Created the bounded Component Task, Capability Gate 0 evidence, checkpoint,
   and review ledger.
+- Froze the Task contract at
+  `19c1ed254aef8734f34a4f209892444c3c2b9817`.
+- Added exact Docker volume destination parsing and 19 focused cases covering
+  parent replacements, nested targets, source substrings, options, malformed
+  entries, and persistent/ephemeral sandbox behavior.
+- Added P-006 to ordered application, exact-file verification, deterministic
+  archive synchronization, embedded runtime extraction, and template checks.
+- Verified the exact pinned patch lifecycle with `verify → restore → apply →
+  apply`; the repeated application was idempotent and every patched-file
+  checksum matched.
+- Updated the upgrade runbook's complete patch inventory and explicitly
+  separated source availability from private deployment truth.
+- Completed Initial Audit on
+  `5353d0eac96db0978405ebc670aec71de1933e12` with no blocking finding.
+- Passed the focused upstream tests, archive check, template validation,
+  complete public repository validation, and Context Kit 0.5.0/spec-v2
+  validation.
 
 ## Remaining
 
-- Freeze the Task contract after validation.
-- Implement P-006 and focused regression tests.
-- Update deterministic patch/archive/checksum owners and affected docs.
-- Complete review and exact-head validation, then publish one public PR.
+None.
 
 ## Blockers
 
@@ -111,15 +124,26 @@ None.
 
 ## Relevant Files
 
-- `deploy/minimal/patches/P-006-preserve-workspace-for-nested-mounts.patch`
+- `deploy/minimal/patches/hermes-v0.21.0-29112bef/P-006-preserve-workspace-for-nested-mounts.patch`
 - `deploy/minimal/apply-hermes-patches.sh`
 - `deploy/minimal/sync_hermes_patch_archive.py`
-- `deploy/minimal/PATCHED_SHA256SUMS`
+- `deploy/minimal/patches/hermes-v0.21.0-29112bef/PATCHED_SHA256SUMS`
 - `deploy/minimal/runtime-config.sh`
 - `deploy/minimal/validate-template.sh`
 - `deploy/minimal/README.md`
 - `tasks/evidence/TASK-016/`
 
+## Result
+
+The pinned Hermes patch set now preserves its generated persistent workspace
+bind or ephemeral workspace tmpfs when additional volumes target children of
+`/workspace`. An explicit volume whose parsed destination is exactly
+`/workspace` still replaces the parent without producing a duplicate. The
+repair is source-only and does not introduce structured mount configuration or
+change any deployment.
+
 ## Next Step
 
-Freeze this contract, then implement and validate only P-006.
+Review and accept this bounded Component proposal. After merge, the parent
+System Task may accept the exact revision; structured Context workspace
+configuration and live deployment remain separate later Tasks.

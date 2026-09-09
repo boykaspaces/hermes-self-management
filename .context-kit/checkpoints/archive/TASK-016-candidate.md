@@ -2,7 +2,7 @@
 
 Project: hermes-self-management
 Task: TASK-016
-Status: Current
+Status: Archived
 Created: 2026-09-09
 
 ## Objective
@@ -19,12 +19,10 @@ parent sandbox, without adding or deploying structured mount configuration.
 
 ## In Progress
 
-- Freeze the Task contract and implement P-006 with focused tests.
+None.
 
 ## Remaining
 
-- Update patch archive, verification, checksums, and affected documentation.
-- Run Initial Audit, resolve findings if any, and complete validation.
 - Publish one public PR and wait for user review and merge.
 
 ## Blockers
@@ -37,22 +35,23 @@ None.
 - `tasks/evidence/TASK-016/`
 - `deploy/minimal/patches/`
 - `deploy/minimal/apply-hermes-patches.sh`
-- `deploy/minimal/PATCHED_SHA256SUMS`
+- `deploy/minimal/patches/hermes-v0.21.0-29112bef/PATCHED_SHA256SUMS`
 
 ## Git State
 
 - Branch: `codex/context-workspace-mounts-rebased`
 - Accepted base: `92de1aa192e1d4bd8280b0f62c14fb91c0c54421`
-- Contract revision: pending.
+- Contract revision: `19c1ed254aef8734f34a4f209892444c3c2b9817`.
 
 ## Validation State
 
 - Capability Gate 0: Pass.
-- Contract validation: pending.
-- Initial Audit and Final Audit: pending.
+- Contract validation: pass.
+- Initial Audit: pass with no blocking finding.
+- Final Audit: pending exact pull-request head.
 - Live deployment: unchanged and out of scope.
 
 ## Resume Hint
 
-Freeze this contract, implement only P-006, then validate and publish the
-public Component PR. Do not add Runtime Profile fields or deploy the patch.
+Publish and review the completed public Component candidate. Do not add
+Runtime Profile fields or deploy the patch.
