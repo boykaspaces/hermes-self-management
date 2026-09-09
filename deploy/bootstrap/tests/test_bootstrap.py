@@ -58,6 +58,38 @@ class BootstrapContractTest(unittest.TestCase):
             quickstart,
         )
 
+    def test_quickstart_reaches_a_post_restart_conversation(self):
+        quickstart = (ROOT / "deploy" / "QUICKSTART.md").read_text(encoding="utf-8")
+        ordered_markers = [
+            "aws cloudformation execute-change-set",
+            "aws cloudformation wait stack-create-complete",
+            "dashboard-health-ok",
+            "hermes auth add openai-codex",
+            "hermes auth status openai-codex",
+            "hermes model",
+            "AWS-StartPortForwardingSession",
+            "HERMES_FIRST_CONVERSATION_OK",
+            "aws ec2 stop-instances",
+            "aws ec2 wait instance-stopped",
+            "aws ec2 start-instances",
+            "aws ec2 wait instance-status-ok",
+            "HERMES_RESTART_CONVERSATION_OK",
+        ]
+        positions = [quickstart.index(marker) for marker in ordered_markers]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("export HERMES_STACK_NAME=my-hermes", quickstart)
+        self.assertIn("MODEL_PROVIDER_STRATEGY.md", quickstart)
+        self.assertIn("https://learn.chatgpt.com/docs/auth", quickstart)
+
+        template = (MINIMAL / "cloudformation.yaml").read_text(encoding="utf-8")
+        self.assertIn("DashboardPortForwardCommand", template)
+        self.assertIn("http://127.0.0.1:9119", template)
+        self.assertIn("AWS-StartPortForwardingSession", template)
+        self.assertIn(
+            "--parameters '{\"portNumber\":[\"9119\"],\"localPortNumber\":[\"9119\"]}'",
+            template,
+        )
+
     def test_discovery_script_is_read_only(self):
         source = (BOOTSTRAP / "discover-environment.sh").read_text(encoding="utf-8")
         self.assertIn("get-caller-identity", source)
