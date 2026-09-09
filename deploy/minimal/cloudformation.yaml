@@ -772,6 +772,17 @@ Outputs:
     Description: Run this command locally to open a shell without SSH.
     Value: !Sub aws ssm start-session --target ${HermesInstance} --region ${AWS::Region}
 
+  DashboardPortForwardCommand:
+    Description: Run locally and keep the session open to forward the loopback-only Dashboard.
+    Value: !Sub >-
+      aws ssm start-session --target ${HermesInstance} --region ${AWS::Region}
+      --document-name AWS-StartPortForwardingSession
+      --parameters '{"portNumber":["9119"],"localPortNumber":["9119"]}'
+
+  DashboardUrl:
+    Description: Open locally while the Dashboard port-forwarding session is active.
+    Value: http://127.0.0.1:9119
+
   InstanceRoleArn:
     Description: Runtime role ARN. Use this when another stack must grant the rebuilt Hermes host access.
     Value: !GetAtt HermesInstanceRole.Arn
