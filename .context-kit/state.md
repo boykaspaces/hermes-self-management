@@ -18,11 +18,16 @@ Profile access, separate template and runtime-bundle prefixes, route-table
 discovery, and the documented boundary between account bootstrap and the
 restricted deployment identity.
 
-The TASK-012 candidate connects the reviewed Change Set to a complete first-use
+TASK-012 is accepted on `main` and connects the reviewed Change Set to a complete first-use
 acceptance path: execution, owner OAuth, model confirmation, localhost-only
 Dashboard access, one successful conversation, and a second successful
-conversation after restart. Static and offline validation passed; live AWS and
-account acceptance remain operator-owned checks.
+conversation after restart.
+
+The TASK-013 candidate makes the supported workstation and EC2 target,
+required local tools, model authentication, outbound-network dependency, and
+default runtime capability limits explicit before any AWS resource creation.
+Its versioned preflight checks those local dependencies and can optionally
+verify AWS identity through a read-only STS call.
 
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
@@ -40,9 +45,9 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-012 proposal before starting the separate
-prerequisite-and-feature-limit remediation Task. No primary active Task is
-selected here.
+Review and accept the bounded TASK-013 proposal before starting the separate
+dependency-pinning remediation Task. No primary active Task is selected here;
+failure recovery remains a later separate finding.
 
 ## Active constraints
 

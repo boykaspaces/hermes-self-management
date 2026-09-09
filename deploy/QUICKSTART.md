@@ -1,14 +1,56 @@
 # First AWS Deployment
 
-This runbook takes a new operator from a fresh public clone to a reviewable
-CloudFormation Change Set for their own Hermes host. It does not depend on a
-private repository owned by this project's maintainer and it never asks for a
-Secret value in a CloudFormation parameter.
+This runbook takes a new operator from a fresh public clone through a reviewed
+CloudFormation deployment, the first successful Hermes conversation, and a
+post-restart conversation. It does not depend on a private repository owned by
+this project's maintainer and it never asks for a Secret value in a
+CloudFormation parameter.
+
+## 0. Check suitability and default capabilities
+
+Review these boundaries before creating any AWS resources:
+
+| Area | Supported first-deployment contract |
+|---|---|
+| Operator workstation | macOS or Linux with Bash. On Windows, use WSL2; this runbook does not provide native PowerShell commands. |
+| EC2 host | A reviewed Ubuntu 24.04 LTS x86_64 AMI on `t3.small` or `t3.medium`. Other distributions, architectures, and instance families are not covered by the template contract. |
+| Network | The selected subnet must provide outbound IPv4 access for first-boot package, GitHub, npm, container-image, OpenAI, and AWS service traffic. The host has no inbound security-group rules and is managed through SSM. |
+| Model access | `openai-codex` using owner-completed ChatGPT subscription OAuth. The configured model must be offered to that account. API-key and Bedrock fallback are removed rather than used automatically. |
+| Dashboard | Enabled on instance loopback only and opened through SSM port forwarding; it is not public. |
+| Telegram | Disabled in the example Runtime Profile. Enabling it requires a retained Secret and an intentional profile change. |
+| Browser automation | Disabled (`browser.backend=off`) in the managed runtime configuration. |
+| Agent Terminal | Rootless Podman is available, but container networking is disabled by default. The Agent therefore cannot clone a remote repository or install packages from the network in Terminal. |
+| Git coding and Personal Tools | Disabled by default. Enabling restricted Git coding requires the separately deployed Personal Tools credential lease, explicit CloudFormation parameters, and a reviewed proxy allowlist. |
+
+The EC2 bootstrap itself uses the host's outbound path to install its declared
+software. Ad hoc package installation on the host is not a replacement for a
+reviewed template or runtime-bundle change and is outside this reproducible
+deployment contract. See
+[`minimal/MODEL_PROVIDER_STRATEGY.md`](./minimal/MODEL_PROVIDER_STRATEGY.md)
+for the model and no-fallback boundary.
 
 ## 1. Prerequisites and private workspace
 
-Install `aws` CLI v2, `jq`, Python 3, Ruby, Git, and `ripgrep`. Clone the public
-component directly; no private operations repository is required or fetched:
+Install the repository-supported local tool baseline:
+
+| Tool | Required baseline |
+|---|---|
+| Bash | 3.2 or newer |
+| AWS CLI | v2 |
+| AWS Session Manager plugin | Installed and able to report its version; required by both SSM shell and Dashboard port-forward commands |
+| `jq` | 1.6 or newer |
+| Python | 3.9 or newer |
+| Ruby | 2.6 or newer, with standard YAML and JSON libraries |
+| Git | 2.20 or newer |
+| `ripgrep` | 12 or newer |
+| `shasum` | Installed and able to report its version |
+
+Install AWS CLI v2 from the
+[official AWS instructions](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+and use the current vendor release of the
+[AWS Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+Clone the public component directly; no private operations repository is
+required or fetched:
 
 ```sh
 git clone https://github.com/boykaspaces/hermes-self-management.git
@@ -20,8 +62,15 @@ explicitly:
 
 ```sh
 export AWS_REGION=us-west-2
+AWS_REGION="$AWS_REGION" ./deploy/preflight.sh --aws
 aws sts get-caller-identity
 ```
+
+`preflight.sh` is versioned with this repository. It prints every detected tool
+version and finishes with `preflight-ok version=1`. With `--aws`, it additionally
+performs only the read-only `sts:GetCallerIdentity` check; it does not create or
+change AWS resources. Stop before deployment if it reports any
+`preflight-error`.
 
 Use separate reviewed identities for distinct deployment phases:
 

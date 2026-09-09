@@ -16,6 +16,7 @@ None.
 
 | ID / File | Status | Title | Read when |
 |---|---|---|---|
+| [`TASK-013`](./TASK-013.md) | Completed | Document prerequisites and runtime defaults | Reviewing local prerequisites or default deployment capabilities |
 | [`TASK-012`](./TASK-012.md) | Completed | Complete the first-conversation Quickstart | Reviewing post-Change-Set onboarding and reboot acceptance |
 | [`TASK-011`](./TASK-011.md) | Completed | Align deployer IAM with first deployment | Reviewing restricted-identity deployment permissions |
 | [`TASK-010`](./TASK-010.md) | Completed | Fix Runtime Profile parameter handoff | Reviewing the first-deployment SSM parameter-name contract |

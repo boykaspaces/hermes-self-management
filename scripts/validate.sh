@@ -6,6 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for path in PROJECT.md AGENTS.md .context-kit/manifest.json .context-kit/index.md .context-kit/state.md \
   .context-kit/checkpoints/README.md tasks/README.md tasks/current.md \
   docs/decisions/README.md deploy/QUICKSTART.md deploy/bootstrap/README.md \
+  deploy/preflight.sh \
   deploy/bootstrap/artifacts-cloudformation.yaml deploy/bootstrap/network-cloudformation.yaml \
   deploy/bootstrap/discover-environment.sh deploy/bootstrap/validate-template.sh \
   deploy/minimal/parameters.example.json deploy/minimal/publish-runtime-profile.sh \
@@ -50,6 +51,7 @@ if find "$repo_root" \( -name DEPLOYMENT_RECORD.md -o -name '*.pem' -o -name '*.
 fi
 
 bash -n "$repo_root/deploy/minimal/validate-template.sh"
+bash -n "$repo_root/deploy/preflight.sh"
 bash -n "$repo_root/deploy/minimal/publish-template.sh"
 bash -n "$repo_root/deploy/minimal/publish-runtime-profile.sh"
 bash -n "$repo_root/deploy/minimal/create-change-set.sh"
