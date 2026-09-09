@@ -6,6 +6,11 @@ Active Task: None
 
 ## Current summary
 
+TASK-017's bounded candidate corrects TASK-016's `Parent System Task` field to
+the bare canonical identity required by the reviewed multi-repository
+validator. The correction changes no P-006 implementation, patch archive,
+Runtime Profile, deployment artifact, or private source lock.
+
 TASK-010 is accepted on `main` and corrects the first-deployment Runtime Profile
 parameter-name handoff: Quickstart now uses one exported SSM name for profile
 publication and private CloudFormation parameter-file generation, while a
@@ -62,9 +67,8 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-016 proposal before its exact revision is
-accepted by the private integration repository. No primary active Task is
-selected here.
+Review and accept the bounded TASK-017 metadata proposal before private source
+acceptance. No primary active Task is selected here.
 
 ## Active constraints
 
