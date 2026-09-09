@@ -6,6 +6,13 @@ Active Task: None
 
 ## Current summary
 
+The TASK-010 candidate corrects the first-deployment Runtime Profile
+parameter-name handoff: Quickstart now uses one exported SSM name for profile
+publication and private CloudFormation parameter-file generation, while a
+contract test prevents a second concrete example path from drifting
+independently. This source result becomes accepted project state when its
+proposal is merged.
+
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
 and the advisory `delivery-governance` extension. The extension names the
@@ -22,8 +29,8 @@ deployment state unchanged.
 
 ## Primary focus
 
-After TASK-009 is accepted, the private integration owner may start Increment 7
-through a new System Task. No primary active Task is selected here.
+Review and accept the bounded TASK-010 proposal before starting the separate
+deployer-IAM remediation Task. No primary active Task is selected here.
 
 ## Active constraints
 

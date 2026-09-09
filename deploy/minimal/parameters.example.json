@@ -41,7 +41,7 @@
   },
   {
     "ParameterKey": "RuntimeProfileParameterName",
-    "ParameterValue": "/my-hermes-agent/runtime/profile"
+    "ParameterValue": "REPLACE_WITH_RUNTIME_PROFILE_PARAMETER_NAME"
   },
   {
     "ParameterKey": "GitCodingEnabled",
