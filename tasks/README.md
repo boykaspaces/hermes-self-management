@@ -2,7 +2,9 @@
 
 ## In Progress
 
-None.
+| ID / File | Status | Title | Read when |
+|---|---|---|---|
+| [`TASK-017`](./TASK-017.md) | In Progress | Repair the TASK-016 parent link | Reviewing the integration metadata failure or bounded correction |
 
 ## Blocked
 
