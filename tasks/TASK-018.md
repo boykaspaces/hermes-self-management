@@ -1,9 +1,9 @@
 # TASK-018: Add Structured Context Workspace Mounts
 
-Status: In Progress
+Status: Completed
 Type: Component
 Governance: Required
-Delivery Stage: Plan
+Delivery Stage: Review
 Priority: High
 Parent System Task: personal-hermes-agent:TASK-026
 
@@ -86,11 +86,32 @@ Ledger: `tasks/evidence/TASK-018/review.md`
 - Completed the in-memory, non-deployment feasibility probe against that exact
   source: two narrow mounts preserved, credential mount independent, proposed
   compact profile 1304 bytes, and current schema failed closed.
+- Froze the Component contract as
+  `332b140e8c21a25577f38f11cf06611538e030d1` and verified its exact parent
+  relationship to `personal-hermes-agent:TASK-026`.
+- Added strict v1/v2 schema migration, structured path validation, existing
+  real-directory and runtime-user ownership checks, and deterministic fixed
+  registry/projects mount generation.
+- Preserved v1 mount behavior, unrelated mounts, the separately injected
+  credential mount, and the ordinary P-006 parent sandbox while replacing v2
+  conflicts only at the two owned destinations.
+- Added migration, field-shape, unsafe-path, read-only/read-write, exact-mount,
+  conflict, disable, idempotence, missing-directory, non-directory, symlink,
+  child-symlink, and wrong-owner coverage. The Runtime Profile suite passed 25
+  tests and template validation passed 30 tests in total.
+- Re-ran 19 focused P-006 upstream tests against pinned Hermes revision
+  `29112bef099274229cadff79cdff7bf7b99c4b77`; all passed.
+- Passed the complete public repository suite, Context Kit validation,
+  repository validation, and schema-v2 parent System Task validation for
+  implementation revision `7d98d9c77a2572535724b9b544017f0bae170c84`.
+- Confirmed no private profile, host path, component lock, deployment binding,
+  infrastructure, service, registry, project, credential, or live runtime was
+  changed.
 
 ## Remaining
 
-- Freeze the contract, implement schema v2 and deterministic translation, then
-  run the declared review and validation.
+None within the public source candidate. User review and merge remain external
+acceptance gates before private source acceptance starts.
 
 ## Blockers
 
@@ -107,5 +128,12 @@ None.
 
 ## Next Step
 
-Freeze this contract, then implement the v1-compatible v2 schema and exact
-two-mount translation with focused negative tests.
+Review and merge the public proposal. Do not begin private source acceptance or
+live deployment until that merge is confirmed.
+
+## Result
+
+Runtime Profile schema v2 now exposes one structured Context workspace option
+that can derive only the read-only registry and explicitly scoped managed-
+projects mounts. Schema v1 remains compatible, unsafe or ambiguous roots fail
+closed, and no consumer deployment state changed.
