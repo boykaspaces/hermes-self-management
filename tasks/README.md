@@ -2,7 +2,9 @@
 
 ## In Progress
 
-None.
+| ID / File | Status | Title | Read when |
+|---|---|---|---|
+| [`TASK-016`](./TASK-016.md) | In Progress | Preserve the sandbox with nested workspace mounts | Reviewing P-006, its regression tests, or source-only delivery boundary |
 
 ## Blocked
 
