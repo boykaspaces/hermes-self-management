@@ -6,6 +6,10 @@ post-restart conversation. It does not depend on a private repository owned by
 this project's maintainer and it never asks for a Secret value in a
 CloudFormation parameter.
 
+If any success marker is missing, stop at that layer and use
+[`minimal/FIRST_DEPLOYMENT_RECOVERY.md`](./minimal/FIRST_DEPLOYMENT_RECOVERY.md)
+before retrying or deleting resources.
+
 ## 0. Check suitability and default capabilities
 
 Review these boundaries before creating any AWS resources:
@@ -303,7 +307,20 @@ HERMES_CHANGE_SET_NAME=initial-reviewed-deployment \
 ```
 
 The helper rejects parameter files inside the public clone and rejects example
-placeholders. It never calls `execute-change-set`.
+placeholders. It never calls `execute-change-set`. For a genuinely new Stack,
+stop unless it prints this operation contract:
+
+```text
+StackStatusBefore=DOES_NOT_EXIST
+ChangeSetType=CREATE
+FailureResourcesPreserved=on-stack-failure-do-nothing
+Waiter=stack-create-complete
+```
+
+Failure preservation keeps useful events and resources available for
+diagnosis, but those resources can incur charges. If the helper reports a
+failed existing Stack or refuses its status, follow the recovery runbook
+instead of executing it as a new deployment.
 
 ## 8. Review and execute the Change Set
 
@@ -337,8 +354,12 @@ aws cloudformation wait stack-create-complete \
   --stack-name "$HERMES_STACK_NAME"
 ```
 
-Do not continue if the waiter exits nonzero. On success, confirm the exact
-Stack status and capture the instance ID:
+Do not rerun section 7 if the waiter exits nonzero. Preserve the command
+output, inspect the Stack status, and follow
+[`FIRST_DEPLOYMENT_RECOVERY.md`](./minimal/FIRST_DEPLOYMENT_RECOVERY.md). It
+provides the separate `UPDATE` Change Set and `stack-update-complete` waiter
+needed for a preserved failed creation. On success, confirm the exact Stack
+status and capture the instance ID:
 
 ```sh
 aws cloudformation describe-stacks \
@@ -360,7 +381,8 @@ aws ssm get-connection-status \
   --output text
 ```
 
-Success means the Stack reports `CREATE_COMPLETE`, the instance ID is nonempty,
+Success means the Stack reports `CREATE_COMPLETE` for the initial operation or
+`UPDATE_COMPLETE` after a documented recovery, the instance ID is nonempty,
 and SSM reports `connected`.
 
 ## 9. Open an SSM shell and complete owner OAuth

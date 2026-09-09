@@ -20,13 +20,14 @@ coding, retained context mounts, managed upstream patches, and Token Observer.
 | `publish-runtime-artifacts.sh` | Content-addressed runtime-bundle upload and deployment parameter output |
 | `validate-template.sh` | Runtime-bundle, YAML, User Data, shell, IAM, and security-invariant checks |
 | `publish-template.sh` | Content-addressed CloudFormation template upload and AWS validation |
-| `create-change-set.sh` | Create, but never execute, an initial Change Set from a private parameter file |
+| `create-change-set.sh` | Prepare, but never execute, a status-aware initial or failed-first-deployment recovery Change Set from a private parameter file |
 | `patches/` | Version-specific upstream Hermes patch source and applied-file checksums |
 | `apply-hermes-patches.sh` | Commit-bound apply, verify, and restore operations |
 | `sync_hermes_patch_archive.py` | Deterministic managed-patch archive used by the runtime-bundle builder |
 | `sync_token_observer_archive.py` | Deterministic Token Observer archive used by the runtime-bundle builder |
 | `HERMES_UPGRADE_RUNBOOK.md` | Required upgrade, patch migration, regression, and rollback sequence |
 | `MODEL_PROVIDER_STRATEGY.md` | Subscription-first provider and no-automatic-fallback policy |
+| `FIRST_DEPLOYMENT_RECOVERY.md` | Failure evidence, symptom diagnosis, cleanup gates, and safe first-deployment retry paths |
 | `policies/` | Rendered operator/deployer policy examples |
 | `stack-policy.json` | Replacement/deletion guard for the EC2 instance |
 
@@ -116,8 +117,12 @@ Upload and deployment are operator-controlled writes.
 8. Replace temporary deployer access with the rendered operator policy.
 
 For an initial create, `create-change-set.sh` enforces an external parameter
-file, rejects unresolved example placeholders, and stops before execution so
-the operator can inspect the complete resource and IAM change set.
+file, rejects unresolved example placeholders, preserves provisioned resources
+if creation fails, and stops before execution. For a preserved `CREATE_FAILED`
+or `UPDATE_FAILED` first deployment, it prepares a recovery UPDATE only after
+the operator has diagnosed the failure. It refuses active, healthy, rolled
+back, deletion-failed, and ambiguous Stack states. Follow
+[`FIRST_DEPLOYMENT_RECOVERY.md`](./FIRST_DEPLOYMENT_RECOVERY.md) before retrying.
 
 Changing a consumer preference normally updates only the versioned SSM profile
 and then restarts Gateway; it does not change CloudFormation, User Data, or the

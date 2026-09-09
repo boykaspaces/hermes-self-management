@@ -51,18 +51,89 @@ if rg -n 'REPLACE_WITH_' "$parameter_file"; then
   exit 1
 fi
 
-change_set_id="$(aws cloudformation create-change-set \
+stack_status_error="$(mktemp)"
+cleanup() {
+  rm -f -- "$stack_status_error"
+}
+trap cleanup EXIT
+
+if stack_status="$(aws cloudformation describe-stacks \
   --region "$region" \
   --stack-name "$stack_name" \
-  --change-set-name "$change_set_name" \
-  --change-set-type CREATE \
-  --template-url "$template_url" \
-  --parameters "file://$parameter_path" \
-  --capabilities CAPABILITY_IAM \
-  --description 'Initial Hermes deployment prepared from public, consumer-neutral inputs' \
-  --query Id \
-  --output text)"
+  --query 'Stacks[0].StackStatus' \
+  --output text 2>"$stack_status_error")"; then
+  :
+elif rg -q 'does not exist' "$stack_status_error"; then
+  stack_status=DOES_NOT_EXIST
+else
+  cat "$stack_status_error" >&2
+  echo 'unable to determine the existing Stack status; no Change Set was created' >&2
+  exit 1
+fi
 
+case "$stack_status" in
+  DOES_NOT_EXIST)
+    change_set_type=CREATE
+    waiter=stack-create-complete
+    description='Initial Hermes deployment prepared from public, consumer-neutral inputs'
+    failure_resources_preserved=on-stack-failure-do-nothing
+    ;;
+  CREATE_FAILED|UPDATE_FAILED)
+    if [ "$change_set_name" = hermes-initial-deployment ]; then
+      echo 'set HERMES_CHANGE_SET_NAME to a new recovery-specific name; no Change Set was created' >&2
+      exit 1
+    fi
+    change_set_type=UPDATE
+    waiter=stack-update-complete
+    description='Hermes first-deployment recovery prepared after operator diagnosis'
+    failure_resources_preserved=execute-disable-rollback-required
+    ;;
+  REVIEW_IN_PROGRESS)
+    echo "Stack $stack_name is REVIEW_IN_PROGRESS; review or delete its existing unexecuted Change Set first; no Change Set was created" >&2
+    exit 1
+    ;;
+  CREATE_IN_PROGRESS|ROLLBACK_IN_PROGRESS|DELETE_IN_PROGRESS|UPDATE_IN_PROGRESS|UPDATE_COMPLETE_CLEANUP_IN_PROGRESS|UPDATE_ROLLBACK_IN_PROGRESS|UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS)
+    echo "Stack $stack_name is $stack_status; wait for the current operation before retrying; no Change Set was created" >&2
+    exit 1
+    ;;
+  ROLLBACK_COMPLETE|ROLLBACK_FAILED|DELETE_FAILED|UPDATE_ROLLBACK_FAILED)
+    echo "Stack $stack_name is $stack_status and requires the explicit recovery runbook; no Change Set was created" >&2
+    exit 1
+    ;;
+  CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
+    echo "Stack $stack_name is healthy ($stack_status); this first-deployment helper refuses a normal Stack update, so no Change Set was created" >&2
+    exit 1
+    ;;
+  *)
+    echo "Stack $stack_name has unsupported status $stack_status; no Change Set was created" >&2
+    exit 1
+    ;;
+esac
+
+change_set_args=(
+  cloudformation create-change-set
+  --region "$region"
+  --stack-name "$stack_name"
+  --change-set-name "$change_set_name"
+  --change-set-type "$change_set_type"
+  --template-url "$template_url"
+  --parameters "file://$parameter_path"
+  --capabilities CAPABILITY_IAM
+  --description "$description"
+  --query Id
+  --output text
+)
+
+if [ "$change_set_type" = CREATE ]; then
+  change_set_id="$(aws "${change_set_args[@]}" --on-stack-failure DO_NOTHING)"
+else
+  change_set_id="$(aws "${change_set_args[@]}")"
+fi
+
+printf 'StackStatusBefore=%s\n' "$stack_status"
+printf 'ChangeSetType=%s\n' "$change_set_type"
+printf 'FailureResourcesPreserved=%s\n' "$failure_resources_preserved"
+printf 'Waiter=%s\n' "$waiter"
 printf 'ChangeSetId=%s\n' "$change_set_id"
 printf 'Review with:\n'
 printf 'aws cloudformation describe-change-set --region %q --change-set-name %q\n' "$region" "$change_set_id"

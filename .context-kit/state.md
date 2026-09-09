@@ -29,10 +29,15 @@ dependency, and default runtime capability limits explicit before any AWS
 resource creation. Its versioned preflight checks those local dependencies and
 can optionally verify AWS identity through a read-only STS call.
 
-The TASK-014 candidate pins and verifies the first-boot installer, upstream
-dependency locks, Agent Browser package, and coding-container image, then
-records the software versions actually installed for troubleshooting and
+TASK-014 is accepted on `main` and pins and verifies the first-boot installer,
+upstream dependency locks, Agent Browser package, and coding-container image,
+then records the software versions actually installed for troubleshooting and
 rollback.
+
+The TASK-015 candidate adds a status-aware first-deployment recovery path with
+preserved failure evidence, bounded Stack retry rules, and symptom-specific
+diagnostics for CloudFormation, SSM, Runtime Profile, OAuth, and Dashboard
+failures.
 
 The public runtime component explicitly adopts Context Kit 0.5.0 project spec
 v2 with the repository profile, Hermes adapter v3, GitHub workflow adapter v1,
@@ -50,8 +55,9 @@ deployment state unchanged.
 
 ## Primary focus
 
-Review and accept the bounded TASK-014 proposal before starting the final
-separate failure-recovery finding. No primary active Task is selected here.
+Review and accept the bounded TASK-015 proposal. Its acceptance completes the
+six source-and-documentation findings from the public first-deployment review;
+live AWS acceptance remains consumer-owned deployment evidence.
 
 ## Active constraints
 

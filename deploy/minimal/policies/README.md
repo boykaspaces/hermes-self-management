@@ -2,7 +2,7 @@
 
 | Template | Use |
 |---|---|
-| `deployer-policy.json.tmpl` | Temporary reviewed minimal-host deployment access after bootstrap resources exist; includes discovery, one Runtime Profile, two artifact prefixes, the host Stack, IAM, EC2, snapshots, and SSM sessions |
+| `deployer-policy.json.tmpl` | Temporary reviewed minimal-host deployment access after bootstrap resources exist; includes discovery, one Runtime Profile, two artifact prefixes, the host Stack, IAM, EC2, snapshots, SSM sessions, and read-only instance console output for failed first-boot diagnosis |
 | `operator-policy.json.tmpl` | Long-lived access limited to one instance, Stack, and the operator's own SSM sessions |
 
 Render to a temporary file outside Git. Required placeholders across the two
@@ -36,3 +36,6 @@ container has its own deployer policy under
 
 Review the rendered policy and target resources before applying it. Remove the
 deployer policy after the change window. Never commit rendered policies.
+`ec2:GetConsoleOutput` is the only recovery-specific EC2 read and is needed
+when the SSM agent never becomes reachable; it does not grant serial-console,
+shell, ingress, reboot, or instance-mutation access.
